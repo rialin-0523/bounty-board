@@ -85,12 +85,19 @@ function Admin() {
     console.log('Supabase Key:', supabase.supabaseKey ? '已设置' : '未设置')
     setLoading(true)
 
+    // 清理表单数据，hunters_id 为空时设为 null
+    const cleanForm = {
+      ...taskForm,
+      hunters_id: taskForm.hunters_id || null,
+      poster_avatar_url: taskForm.poster_avatar_url || null
+    }
+
     try {
       if (editingTask) {
-        const { error } = await supabase.from('tasks').update(taskForm).eq('id', editingTask.id)
+        const { error } = await supabase.from('tasks').update(cleanForm).eq('id', editingTask.id)
         if (error) alert('更新失败: ' + error.message)
       } else {
-        const { data, error } = await supabase.from('tasks').insert(taskForm)
+        const { data, error } = await supabase.from('tasks').insert(cleanForm)
         console.log('插入结果:', data, error)
         if (error) {
           alert('创建失败: ' + error.message)
