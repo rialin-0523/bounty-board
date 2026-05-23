@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
 import './Admin.css'
 
-const ADMIN_PASSWORD = 'bounty2024' // 可以改成你想要的密码
+const ADMIN_PASSWORD = 'bounty2024'
 
 function Admin() {
   const [authenticated, setAuthenticated] = useState(false)
@@ -10,8 +10,6 @@ function Admin() {
   const [tasks, setTasks] = useState([])
   const [hunters, setHunters] = useState([])
   const [loading, setLoading] = useState(true)
-
-  // 表单状态
   const [taskForm, setTaskForm] = useState({
     title: '',
     description: '',
@@ -55,43 +53,32 @@ function Admin() {
     setLoading(false)
   }
 
-  // 上传图片
   async function uploadImage(file, type) {
     const fileExt = file.name.split('.').pop()
     const fileName = `${Date.now()}.${fileExt}`
     const path = type === 'hunter' ? `hunters/${fileName}` : fileName
-
     const { data, error } = await supabase.storage
       .from('avatars')
       .upload(path, file)
-
     if (error) {
       alert('上传失败: ' + error.message)
       return null
     }
-
     const { data: { publicUrl } } = supabase.storage
       .from('avatars')
       .getPublicUrl(path)
-
     return publicUrl
   }
 
-  // 任务操作
   async function handleTaskSubmit(e) {
     e.preventDefault()
-    console.log('开始提交任务, 表单数据:', taskForm)
-    console.log('Supabase URL:', supabase.supabaseUrl)
-    console.log('Supabase Key:', supabase.supabaseKey ? '已设置' : '未设置')
+    console.log('提交任务:', taskForm)
     setLoading(true)
-
-    // 清理表单数据，hunters_id 为空时设为 null
     const cleanForm = {
       ...taskForm,
       hunters_id: taskForm.hunters_id || null,
       poster_avatar_url: taskForm.poster_avatar_url || null
     }
-
     try {
       if (editingTask) {
         const { error } = await supabase.from('tasks').update(cleanForm).eq('id', editingTask.id)
@@ -108,14 +95,9 @@ function Admin() {
     } catch (err) {
       alert('操作失败: ' + err.message)
     }
-
     resetTaskForm()
     fetchData()
     setLoading(false)
-  }
-
-    resetTaskForm()
-    fetchData()
   }
 
   async function deleteTask(id) {
@@ -144,17 +126,14 @@ function Admin() {
     setEditingTask(null)
   }
 
-  // 接单人操作
   async function handleHunterSubmit(e) {
     e.preventDefault()
     setLoading(true)
-
     if (editingHunter) {
       await supabase.from('hunters').update(hunterForm).eq('id', editingHunter.id)
     } else {
       await supabase.from('hunters').insert(hunterForm)
     }
-
     resetHunterForm()
     fetchData()
   }
@@ -176,7 +155,6 @@ function Admin() {
     setEditingHunter(null)
   }
 
-  // 登录页面
   if (!authenticated) {
     return (
       <div className="login-page">
@@ -197,18 +175,11 @@ function Admin() {
   return (
     <div className="admin">
       <h1 className="admin-title">运营后台</h1>
-
       <div className="tabs">
-        <button 
-          className={`tab ${activeTab === 'tasks' ? 'active' : ''}`}
-          onClick={() => setActiveTab('tasks')}
-        >
+        <button className={`tab ${activeTab === 'tasks' ? 'active' : ''}`} onClick={() => setActiveTab('tasks')}>
           悬赏令管理
         </button>
-        <button 
-          className={`tab ${activeTab === 'hunters' ? 'active' : ''}`}
-          onClick={() => setActiveTab('hunters')}
-        >
+        <button className={`tab ${activeTab === 'hunters' ? 'active' : ''}`} onClick={() => setActiveTab('hunters')}>
           揭榜人管理
         </button>
       </div>
@@ -217,127 +188,67 @@ function Admin() {
         <div className="panel">
           <form className="form" onSubmit={handleTaskSubmit}>
             <h3>{editingTask ? '编辑悬赏令' : '创建悬赏令'}</h3>
-            
             <div className="form-group">
               <label>标题</label>
-              <input
-                type="text"
-                value={taskForm.title}
-                onChange={e => setTaskForm({ ...taskForm, title: e.target.value })}
-                required
-              />
+              <input type="text" value={taskForm.title} onChange={e => setTaskForm({ ...taskForm, title: e.target.value })} required />
             </div>
-
             <div className="form-group">
               <label>任务描述</label>
-              <textarea
-                value={taskForm.description}
-                onChange={e => setTaskForm({ ...taskForm, description: e.target.value })}
-                rows="3"
-              />
+              <textarea value={taskForm.description} onChange={e => setTaskForm({ ...taskForm, description: e.target.value })} rows="3" />
             </div>
-
             <div className="form-row">
               <div className="form-group">
                 <label>赏金</label>
-                <input
-                  type="text"
-                  value={taskForm.bounty}
-                  onChange={e => setTaskForm({ ...taskForm, bounty: e.target.value })}
-                  required
-                />
+                <input type="text" value={taskForm.bounty} onChange={e => setTaskForm({ ...taskForm, bounty: e.target.value })} required />
               </div>
-
               <div className="form-group">
                 <label>状态</label>
-                <select
-                  value={taskForm.status}
-                  onChange={e => setTaskForm({ ...taskForm, status: e.target.value })}
-                >
+                <select value={taskForm.status} onChange={e => setTaskForm({ ...taskForm, status: e.target.value })}>
                   <option value="寻好汉">寻好汉</option>
                   <option value="已揭榜">已揭榜</option>
                   <option value="来领赏">来领赏</option>
                   <option value="收榜">收榜</option>
                 </select>
               </div>
-
               <div className="form-group">
                 <label>类型</label>
-                <select
-                  value={taskForm.task_type}
-                  onChange={e => setTaskForm({ ...taskForm, task_type: e.target.value })}
-                >
+                <select value={taskForm.task_type} onChange={e => setTaskForm({ ...taskForm, task_type: e.target.value })}>
                   <option value="独行赏">独行赏</option>
                   <option value="群英令">群英令</option>
                 </select>
               </div>
             </div>
-
             <div className="form-group">
               <label>出榜人昵称</label>
-              <input
-                type="text"
-                value={taskForm.poster_nickname}
-                onChange={e => setTaskForm({ ...taskForm, poster_nickname: e.target.value })}
-                required
-              />
+              <input type="text" value={taskForm.poster_nickname} onChange={e => setTaskForm({ ...taskForm, poster_nickname: e.target.value })} required />
             </div>
-
             <div className="form-group">
               <label>出榜人头像</label>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={async e => {
-                  const url = await uploadImage(e.target.files[0], 'poster')
-                  if (url) setTaskForm({ ...taskForm, poster_avatar_url: url })
-                }}
-              />
-              {taskForm.poster_avatar_url && (
-                <img src={taskForm.poster_avatar_url} alt="预览" className="preview-img" />
-              )}
+              <input type="file" accept="image/*" onChange={async e => {
+                const url = await uploadImage(e.target.files[0], 'poster')
+                if (url) setTaskForm({ ...taskForm, poster_avatar_url: url })
+              }} />
+              {taskForm.poster_avatar_url && <img src={taskForm.poster_avatar_url} alt="预览" className="preview-img" />}
             </div>
-
             <div className="form-group">
               <label>揭榜人</label>
-              <select
-                value={taskForm.hunters_id}
-                onChange={e => setTaskForm({ ...taskForm, hunters_id: e.target.value })}
-              >
+              <select value={taskForm.hunters_id} onChange={e => setTaskForm({ ...taskForm, hunters_id: e.target.value })}>
                 <option value="">无</option>
-                {hunters.map(h => (
-                  <option key={h.id} value={h.id}>{h.nickname}</option>
-                ))}
+                {hunters.map(h => <option key={h.id} value={h.id}>{h.nickname}</option>)}
               </select>
             </div>
-
             <div className="form-actions">
-              <button type="submit" className="btn btn-primary">
-                {editingTask ? '保存修改' : '创建悬赏令'}
-              </button>
-              {editingTask && (
-                <button type="button" className="btn btn-secondary" onClick={resetTaskForm}>
-                  取消
-                </button>
-              )}
+              <button type="submit" className="btn btn-primary">{editingTask ? '保存修改' : '创建悬赏令'}</button>
+              {editingTask && <button type="button" className="btn btn-secondary" onClick={resetTaskForm}>取消</button>}
             </div>
           </form>
-
           <div className="list">
             <h3>悬赏令列表</h3>
-            {tasks.length === 0 ? (
-              <div className="empty">暂无悬赏令</div>
-            ) : (
+            {tasks.length === 0 ? <div className="empty">暂无悬赏令</div> : (
               <table>
                 <thead>
                   <tr>
-                    <th>标题</th>
-                    <th>赏金</th>
-                    <th>状态</th>
-                    <th>类型</th>
-                    <th>出榜人</th>
-                    <th>揭榜人</th>
-                    <th>操作</th>
+                    <th>标题</th><th>赏金</th><th>状态</th><th>类型</th><th>出榜人</th><th>揭榜人</th><th>操作</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -347,9 +258,7 @@ function Admin() {
                       <tr key={task.id}>
                         <td>{task.title}</td>
                         <td>{task.bounty}</td>
-                        <td>
-                          <span className={`status-tag ${task.status}`}>{task.status}</span>
-                        </td>
+                        <td><span className={`status-tag ${task.status}`}>{task.status}</span></td>
                         <td>{task.task_type}</td>
                         <td>{task.poster_nickname}</td>
                         <td>{hunter?.nickname || '-'}</td>
@@ -371,66 +280,35 @@ function Admin() {
         <div className="panel">
           <form className="form" onSubmit={handleHunterSubmit}>
             <h3>{editingHunter ? '编辑揭榜人' : '添加揭榜人'}</h3>
-            
             <div className="form-group">
               <label>昵称</label>
-              <input
-                type="text"
-                value={hunterForm.nickname}
-                onChange={e => setHunterForm({ ...hunterForm, nickname: e.target.value })}
-                required
-              />
+              <input type="text" value={hunterForm.nickname} onChange={e => setHunterForm({ ...hunterForm, nickname: e.target.value })} required />
             </div>
-
             <div className="form-group">
               <label>头像</label>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={async e => {
-                  const url = await uploadImage(e.target.files[0], 'hunter')
-                  if (url) setHunterForm({ ...hunterForm, avatar_url: url })
-                }}
-              />
-              {hunterForm.avatar_url && (
-                <img src={hunterForm.avatar_url} alt="预览" className="preview-img" />
-              )}
+              <input type="file" accept="image/*" onChange={async e => {
+                const url = await uploadImage(e.target.files[0], 'hunter')
+                if (url) setHunterForm({ ...hunterForm, avatar_url: url })
+              }} />
+              {hunterForm.avatar_url && <img src={hunterForm.avatar_url} alt="预览" className="preview-img" />}
             </div>
-
             <div className="form-actions">
-              <button type="submit" className="btn btn-primary">
-                {editingHunter ? '保存修改' : '添加揭榜人'}
-              </button>
-              {editingHunter && (
-                <button type="button" className="btn btn-secondary" onClick={resetHunterForm}>
-                  取消
-                </button>
-              )}
+              <button type="submit" className="btn btn-primary">{editingHunter ? '保存修改' : '添加揭榜人'}</button>
+              {editingHunter && <button type="button" className="btn btn-secondary" onClick={resetHunterForm}>取消</button>}
             </div>
           </form>
-
           <div className="list">
             <h3>揭榜人列表</h3>
-            {hunters.length === 0 ? (
-              <div className="empty">暂无揭榜人</div>
-            ) : (
+            {hunters.length === 0 ? <div className="empty">暂无揭榜人</div> : (
               <table>
                 <thead>
-                  <tr>
-                    <th>头像</th>
-                    <th>昵称</th>
-                    <th>操作</th>
-                  </tr>
+                  <tr><th>头像</th><th>昵称</th><th>操作</th></tr>
                 </thead>
                 <tbody>
                   {hunters.map(hunter => (
                     <tr key={hunter.id}>
                       <td>
-                        {hunter.avatar_url ? (
-                          <img src={hunter.avatar_url} alt={hunter.nickname} className="table-avatar" />
-                        ) : (
-                          <div className="table-avatar placeholder">侠</div>
-                        )}
+                        {hunter.avatar_url ? <img src={hunter.avatar_url} alt={hunter.nickname} className="table-avatar" /> : <div className="table-avatar placeholder">侠</div>}
                       </td>
                       <td>{hunter.nickname}</td>
                       <td>
