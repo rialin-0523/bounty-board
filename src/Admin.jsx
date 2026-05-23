@@ -129,13 +129,28 @@ function Admin() {
   async function handleHunterSubmit(e) {
     e.preventDefault()
     setLoading(true)
-    if (editingHunter) {
-      await supabase.from('hunters').update(hunterForm).eq('id', editingHunter.id)
-    } else {
-      await supabase.from('hunters').insert(hunterForm)
+    const cleanForm = {
+      ...hunterForm,
+      avatar_url: hunterForm.avatar_url || null
+    }
+    try {
+      if (editingHunter) {
+        const { error } = await supabase.from('hunters').update(cleanForm).eq('id', editingHunter.id)
+        if (error) alert('更新失败: ' + error.message)
+      } else {
+        const { data, error } = await supabase.from('hunters').insert(cleanForm)
+        if (error) {
+          alert('创建失败: ' + error.message)
+        } else {
+          alert('创建成功！')
+        }
+      }
+    } catch (err) {
+      alert('操作失败: ' + err.message)
     }
     resetHunterForm()
     fetchData()
+    setLoading(false)
   }
 
   async function deleteHunter(id) {
@@ -151,7 +166,7 @@ function Admin() {
   }
 
   function resetHunterForm() {
-    setHunterForm({ nickname: '', avatar_url: '' })
+    setHunterForm({ nickname: '', avatar_url: null })
     setEditingHunter(null)
   }
 
