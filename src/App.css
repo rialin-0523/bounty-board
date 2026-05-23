@@ -1,0 +1,34 @@
+.app {
+  min-height: 100vh;
+}
+
+.nav {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.3);
+  border-bottom: 2px solid rgba(184, 134, 11, 0.3);
+  margin-bottom: 20px;
+}
+
+.nav-btn {
+  padding: 12px 30px;
+  font-size: 1.1rem;
+  font-family: 'Ma Shan Zheng', cursive;
+  background: transparent;
+  border: 2px solid #B8860B;
+  border-radius: 8px;
+  color: #B8860B;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.nav-btn:hover {
+  background: rgba(184, 134, 11, 0.2);
+}
+
+.nav-btn.active {
+  background: #B8860B;
+  color: #1a1a1a;
+}

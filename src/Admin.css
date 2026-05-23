@@ -1,0 +1,282 @@
+@import url('https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Serif+SC:wght@400;700&display=swap');
+
+:root {
+  --parchment: #f5e6c8;
+  --parchment-dark: #e8d4a8;
+  --ink: #2c1810;
+  --ink-light: #4a3728;
+  --seal-red: #8B0000;
+  --gold: #B8860B;
+  --border-brown: #8B4513;
+  --bg-dark: #1a1a1a;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 20px;
+  background: var(--bg-dark);
+  min-height: 100vh;
+  font-family: 'Noto Serif SC', serif;
+}
+
+#root {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.admin {
+  padding: 20px;
+}
+
+.admin-title {
+  font-family: 'Ma Shan Zheng', cursive;
+  font-size: 2.5rem;
+  color: var(--gold);
+  text-align: center;
+  margin: 0 0 30px 0;
+}
+
+/* 标签页 */
+.tabs {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 30px;
+  border-bottom: 2px solid var(--border-brown);
+  padding-bottom: 10px;
+}
+
+.tab {
+  padding: 12px 24px;
+  font-size: 1rem;
+  font-family: 'Noto Serif SC', serif;
+  background: transparent;
+  border: 2px solid var(--border-brown);
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
+  color: var(--parchment);
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.tab:hover {
+  background: rgba(139, 69, 19, 0.3);
+}
+
+.tab.active {
+  background: var(--parchment);
+  color: var(--ink);
+}
+
+/* 面板 */
+.panel {
+  background: var(--parchment);
+  border-radius: 8px;
+  padding: 30px;
+  border: 3px solid var(--border-brown);
+}
+
+/* 表单 */
+.form {
+  max-width: 600px;
+  margin: 0 auto 40px auto;
+  padding-bottom: 30px;
+  border-bottom: 2px dashed var(--border-brown);
+}
+
+.form h3 {
+  font-family: 'Ma Shan Zheng', cursive;
+  font-size: 1.8rem;
+  color: var(--ink);
+  text-align: center;
+  margin: 0 0 20px 0;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--ink);
+  font-weight: bold;
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+  width: 100%;
+  padding: 12px;
+  font-size: 1rem;
+  font-family: 'Noto Serif SC', serif;
+  border: 2px solid var(--border-brown);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+  outline: none;
+  border-color: var(--gold);
+  background: white;
+}
+
+.form-row {
+  display: flex;
+  gap: 20px;
+}
+
+.form-row .form-group {
+  flex: 1;
+}
+
+.preview-img {
+  margin-top: 10px;
+  max-width: 100px;
+  max-height: 100px;
+  border-radius: 50%;
+  border: 2px solid var(--border-brown);
+}
+
+/* 按钮 */
+.form-actions {
+  display: flex;
+  gap: 15px;
+  justify-content: center;
+  margin-top: 30px;
+}
+
+.btn {
+  padding: 12px 30px;
+  font-size: 1rem;
+  font-family: 'Noto Serif SC', serif;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.btn-primary {
+  background: var(--seal-red);
+  color: white;
+}
+
+.btn-primary:hover {
+  background: #a00000;
+}
+
+.btn-secondary {
+  background: var(--ink-light);
+  color: white;
+}
+
+.btn-secondary:hover {
+  background: var(--ink);
+}
+
+.btn-danger {
+  background: #dc143c;
+  color: white;
+  margin-left: 10px;
+}
+
+.btn-danger:hover {
+  background: #b01030;
+}
+
+/* 列表 */
+.list h3 {
+  font-family: 'Ma Shan Zheng', cursive;
+  font-size: 1.5rem;
+  color: var(--ink);
+  margin: 0 0 20px 0;
+}
+
+.empty {
+  text-align: center;
+  padding: 40px;
+  color: var(--ink-light);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th, td {
+  padding: 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--border-brown);
+}
+
+th {
+  background: rgba(139, 69, 19, 0.1);
+  color: var(--ink);
+  font-weight: bold;
+}
+
+td button {
+  padding: 6px 12px;
+  font-size: 0.85rem;
+  font-family: 'Noto Serif SC', serif;
+  background: var(--ink-light);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-right: 5px;
+}
+
+td button:hover {
+  background: var(--ink);
+}
+
+.table-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 2px solid var(--border-brown);
+  object-fit: cover;
+}
+
+.table-avatar.placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--parchment-dark);
+  font-family: 'Ma Shan Zheng', cursive;
+  font-size: 1.2rem;
+  color: var(--border-brown);
+}
+
+/* 状态标签 */
+.status-tag {
+  padding: 4px 10px;
+  border-radius: 3px;
+  font-size: 0.85rem;
+  color: white;
+}
+
+.status-tag.寻好汉 { background: #8B4513; }
+.status-tag.已揭榜 { background: #CD853F; }
+.status-tag.来领赏 { background: #228B22; }
+.status-tag.收榜 { background: #696969; }
+
+@media (max-width: 768px) {
+  .form-row {
+    flex-direction: column;
+  }
+  
+  table {
+    font-size: 0.85rem;
+  }
+  
+  th, td {
+    padding: 8px;
+  }
+}
