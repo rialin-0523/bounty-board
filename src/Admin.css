@@ -115,7 +115,12 @@ body {
   font-family: 'Noto Serif SC', serif;
   border: 2px solid var(--border-brown);
   border-radius: 4px;
-  background: rgba(255, 255, 255, 0.5);
+  background: white;
+  color: var(--ink);
+}
+
+.form-group input::placeholder {
+  color: #999;
 }
 
 .form-group input:focus,
