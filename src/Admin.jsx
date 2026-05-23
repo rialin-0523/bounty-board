@@ -80,13 +80,32 @@ function Admin() {
   // 任务操作
   async function handleTaskSubmit(e) {
     e.preventDefault()
+    console.log('开始提交任务, 表单数据:', taskForm)
+    console.log('Supabase URL:', supabase.supabaseUrl)
+    console.log('Supabase Key:', supabase.supabaseKey ? '已设置' : '未设置')
     setLoading(true)
 
-    if (editingTask) {
-      await supabase.from('tasks').update(taskForm).eq('id', editingTask.id)
-    } else {
-      await supabase.from('tasks').insert(taskForm)
+    try {
+      if (editingTask) {
+        const { error } = await supabase.from('tasks').update(taskForm).eq('id', editingTask.id)
+        if (error) alert('更新失败: ' + error.message)
+      } else {
+        const { data, error } = await supabase.from('tasks').insert(taskForm)
+        console.log('插入结果:', data, error)
+        if (error) {
+          alert('创建失败: ' + error.message)
+        } else {
+          alert('创建成功！')
+        }
+      }
+    } catch (err) {
+      alert('操作失败: ' + err.message)
     }
+
+    resetTaskForm()
+    fetchData()
+    setLoading(false)
+  }
 
     resetTaskForm()
     fetchData()
