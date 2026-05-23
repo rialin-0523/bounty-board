@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
-import './App.css'
+import './BountyBoard.css'
 
 const statusLabels = {
   寻好汉: { text: '寻好汉', color: '#8B4513' },
@@ -20,13 +20,22 @@ function BountyCard({ task, hunters }) {
 
   return (
     <div className="bounty-card">
-      {/* 悬赏令头部 - 出榜人 */}
+      {/* 顶部标题 */}
+      <div className="poster-header">
+        <h2>賞金令</h2>
+      </div>
+
+      {/* 官方印章 */}
+      <div className="seal seal-top"></div>
+      <div className="seal seal-bottom"></div>
+
+      {/* 出榜人信息 */}
       <div className="poster-section">
         <div className="poster-avatar">
           {task.poster_avatar_url ? (
             <img src={task.poster_avatar_url} alt={task.poster_nickname} />
           ) : (
-            <div className="avatar-placeholder">赏</div>
+            <div className="avatar-placeholder">賞</div>
           )}
         </div>
         <div className="poster-info">
@@ -35,15 +44,14 @@ function BountyCard({ task, hunters }) {
         </div>
       </div>
 
-      {/* 悬赏令标题 */}
-      <h3 className="bounty-title">{task.title}</h3>
-
-      {/* 任务描述 */}
-      <p className="bounty-desc">{task.description}</p>
+      {/* 任务内容 */}
+      <div className="bounty-content">
+        <p className="bounty-desc">{task.description}</p>
+      </div>
 
       {/* 赏金 */}
       <div className="bounty-reward">
-        <span className="reward-label">赏金</span>
+        <span className="reward-label">賞金</span>
         <span className="reward-amount">{task.bounty}</span>
       </div>
 
@@ -106,6 +114,10 @@ function BountyBoard() {
     setLoading(false)
   }
 
+  function handleSearch() {
+    fetchData()
+  }
+
   const filteredTasks = tasks.filter(task => {
     if (filter !== '全部' && task.status !== filter) return false
     if (hunterFilter !== '全部' && task.hunters_id !== hunterFilter) return false
@@ -115,9 +127,9 @@ function BountyBoard() {
 
   return (
     <div className="bounty-board">
-      <h1 className="board-title">悬赏令</h1>
+      <h1 className="board-title">賞金令</h1>
 
-      {/* 筛选栏 */}
+      {/* 筛选栏 - 一排展示 */}
       <div className="filters">
         <div className="filter-group">
           <label>状态</label>
@@ -148,12 +160,14 @@ function BountyBoard() {
             <option value="独行赏">独行赏</option>
           </select>
         </div>
+
+        <button className="search-btn" onClick={handleSearch}>查询</button>
       </div>
 
       {loading ? (
         <div className="loading">加载中...</div>
       ) : filteredTasks.length === 0 ? (
-        <div className="empty">暂无悬赏令</div>
+        <div className="empty">暂无賞金令</div>
       ) : (
         <div className="bounty-grid">
           {filteredTasks.map(task => (
