@@ -14,12 +14,12 @@ const typeLabels = {
   独行赏: '独行赏'
 }
 
-function BountyCard({ task, hunters }) {
+function BountyCard({ task, hunters, onClick }) {
   const hunter = hunters.find(h => h.id === task.hunters_id)
   const statusInfo = statusLabels[task.status] || statusLabels['寻好汉']
 
   return (
-    <div className="bounty-card">
+    <div className="bounty-card" onClick={() => onClick(task)}>
       {/* 顶部标题 */}
       <div className="poster-header">
         <h2>賞金令</h2>
@@ -44,7 +44,7 @@ function BountyCard({ task, hunters }) {
         </div>
       </div>
 
-      {/* 任务内容 */}
+      {/* 任务内容 - 显示部分 */}
       <div className="bounty-content">
         <p className="bounty-desc">{task.description}</p>
       </div>
@@ -90,6 +90,84 @@ function BountyCard({ task, hunters }) {
   )
 }
 
+// 详情弹窗
+function TaskDetailModal({ task, hunters, onClose }) {
+  const hunter = hunters.find(h => h.id === task.hunters_id)
+  const statusInfo = statusLabels[task.status] || statusLabels['寻好汉']
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content" onClick={e => e.stopPropagation()}>
+        <button className="modal-close" onClick={onClose}>×</button>
+        
+        {/* 标题 */}
+        <div className="modal-header">
+          <h2>賞金令</h2>
+          <h3>{task.title}</h3>
+        </div>
+
+        {/* 出榜人 */}
+        <div className="modal-section">
+          <div className="poster-avatar large">
+            {task.poster_avatar_url ? (
+              <img src={task.poster_avatar_url} alt={task.poster_nickname} />
+            ) : (
+              <div className="avatar-placeholder">賞</div>
+            )}
+          </div>
+          <div className="poster-info">
+            <span className="poster-label">出榜人</span>
+            <span className="poster-name">{task.poster_nickname}</span>
+          </div>
+        </div>
+
+        {/* 任务详情 */}
+        <div className="modal-section">
+          <label>任务详情</label>
+          <p className="detail-text">{task.description || '无'}</p>
+        </div>
+
+        {/* 赏金 */}
+        <div className="modal-section reward-section">
+          <label>賞金</label>
+          <span className="reward-amount large">{task.bounty}</span>
+        </div>
+
+        {/* 状态和类型 */}
+        <div className="modal-section tags-section">
+          <span className={`status-badge ${task.status}`}>{statusInfo.text}</span>
+          <span className={`type-badge ${task.task_type}`}>{typeLabels[task.task_type]}</span>
+        </div>
+
+        {/* 揭榜人 */}
+        <div className="modal-section">
+          <label>揭榜人</label>
+          {hunter ? (
+            <div className="hunter-detail">
+              <div className="hunter-avatar">
+                {hunter.avatar_url ? (
+                  <img src={hunter.avatar_url} alt={hunter.nickname} />
+                ) : (
+                  <div className="avatar-placeholder">侠</div>
+                )}
+              </div>
+              <span>{hunter.nickname}</span>
+            </div>
+          ) : (
+            <span className="no-data">暂无揭榜人</span>
+          )}
+        </div>
+
+        {/* 发布时间 */}
+        <div className="modal-section time-section">
+          <label>发布时间</label>
+          <span>{new Date(task.created_at).toLocaleString('zh-CN')}</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function BountyBoard() {
   const [tasks, setTasks] = useState([])
   const [hunters, setHunters] = useState([])
@@ -97,6 +175,7 @@ function BountyBoard() {
   const [hunterFilter, setHunterFilter] = useState('全部')
   const [typeFilter, setTypeFilter] = useState('全部')
   const [loading, setLoading] = useState(true)
+  const [selectedTask, setSelectedTask] = useState(null)
 
   useEffect(() => {
     fetchData()
@@ -171,9 +250,18 @@ function BountyBoard() {
       ) : (
         <div className="bounty-grid">
           {filteredTasks.map(task => (
-            <BountyCard key={task.id} task={task} hunters={hunters} />
+            <BountyCard key={task.id} task={task} hunters={hunters} onClick={setSelectedTask} />
           ))}
         </div>
+      )}
+
+      {/* 详情弹窗 */}
+      {selectedTask && (
+        <TaskDetailModal 
+          task={selectedTask} 
+          hunters={hunters} 
+          onClose={() => setSelectedTask(null)} 
+        />
       )}
     </div>
   )
