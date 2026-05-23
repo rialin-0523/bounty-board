@@ -2,8 +2,11 @@ import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
 import './Admin.css'
 
+const ADMIN_PASSWORD = 'bounty2024' // 可以改成你想要的密码
+
 function Admin() {
-  const [activeTab, setActiveTab] = useState('tasks')
+  const [authenticated, setAuthenticated] = useState(false)
+  const [password, setPassword] = useState('')
   const [tasks, setTasks] = useState([])
   const [hunters, setHunters] = useState([])
   const [loading, setLoading] = useState(true)
@@ -25,10 +28,21 @@ function Admin() {
   })
   const [editingTask, setEditingTask] = useState(null)
   const [editingHunter, setEditingHunter] = useState(null)
+  const [activeTab, setActiveTab] = useState('tasks')
+
+  function handleLogin(e) {
+    e.preventDefault()
+    if (password === ADMIN_PASSWORD) {
+      setAuthenticated(true)
+      fetchData()
+    } else {
+      alert('密码错误')
+    }
+  }
 
   useEffect(() => {
-    fetchData()
-  }, [])
+    if (authenticated) fetchData()
+  }, [authenticated])
 
   async function fetchData() {
     setLoading(true)
@@ -134,6 +148,24 @@ function Admin() {
   function resetHunterForm() {
     setHunterForm({ nickname: '', avatar_url: '' })
     setEditingHunter(null)
+  }
+
+  // 登录页面
+  if (!authenticated) {
+    return (
+      <div className="login-page">
+        <form className="login-form" onSubmit={handleLogin}>
+          <h2>运营后台登录</h2>
+          <input
+            type="password"
+            placeholder="请输入管理密码"
+            value={password}
+            onChange={e => setPassword(e.target.value)}
+          />
+          <button type="submit">登录</button>
+        </form>
+      </div>
+    )
   }
 
   return (
