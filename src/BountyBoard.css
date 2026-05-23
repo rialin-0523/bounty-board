@@ -339,6 +339,27 @@ body {
   border-radius: 8px;
   overflow: hidden;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  height: 200px;
+  display: flex;
+  flex-direction: column;
+}
+
+@media (min-width: 640px) {
+  .compact-card {
+    height: 220px;
+  }
+}
+
+@media (min-width: 768px) {
+  .compact-card {
+    height: 200px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .compact-card {
+    height: 190px;
+  }
 }
 
 .compact-card:hover {
@@ -362,6 +383,10 @@ body {
 .card-content {
   position: relative;
   padding: 6px 8px 8px;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
 }
 
 @media (min-width: 640px) {
@@ -509,11 +534,15 @@ body {
   color: var(--stone-700);
   line-height: 1.3;
   margin-bottom: 4px;
+  opacity: 0.8;
+  flex: 1;
+  min-height: 0;
   overflow: hidden;
   display: -webkit-box;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
-  opacity: 0.8;
+  text-overflow: ellipsis;
+  word-break: break-all;
 }
 
 @media (min-width: 640px) {
@@ -538,7 +567,8 @@ body {
   font-family: 'ZCOOL XiaoWei', serif;
   border-top: 1px dashed var(--amber-800);
   padding-top: 4px;
-  margin-top: 2px;
+  margin-top: auto;
+  flex-shrink: 0;
 }
 
 @media (min-width: 640px) {
