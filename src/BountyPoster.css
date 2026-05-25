@@ -1,0 +1,197 @@
+/* 打印悬赏令样式 - 复古武侠风格 */
+.bounty-poster-print-container {
+  position: fixed;
+  top: -9999px;
+  left: -9999px;
+  width: 595px;
+  height: 842px;
+  background: #f5f0dc;
+  font-family: 'Noto Serif SC', 'SimSun', serif;
+}
+
+.bounty-poster {
+  width: 595px;
+  height: 842px;
+  position: relative;
+  background:
+    linear-gradient(rgba(0,0,0,0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,0,0,0.02) 1px, transparent 1px),
+    linear-gradient(135deg, #f5f0dc 0%, #efe8d5 25%, #f0e6c8 50%, #e8dcc0 75%, #f5f0dc 100%);
+  background-size: 20px 20px, 20px 20px, 100% 100%;
+}
+
+.poster-border {
+  position: absolute;
+  inset: 8px;
+  border: 3px double #1a1a1a;
+}
+
+.poster-content {
+  position: absolute;
+  inset: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px;
+}
+
+.poster-title {
+  font-size: 48px;
+  font-weight: 900;
+  letter-spacing: 0.3em;
+  color: #8b0000;
+  text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+  margin-bottom: 8px;
+}
+
+.poster-seals {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  margin-bottom: 12px;
+  font-size: 10px;
+}
+
+.seal-left, .seal-right {
+  color: #cc0000;
+  border: 1px solid #cc0000;
+  padding: 2px 6px;
+  transform: rotate(-2deg);
+}
+
+.seal-right {
+  transform: rotate(2deg);
+}
+
+.poster-label-box {
+  background: rgba(255,255,255,0.6);
+  border: 1px dashed #8b4513;
+  padding: 6px 20px;
+  margin-bottom: 10px;
+}
+
+.label-text {
+  font-size: 16px;
+  color: #4a3520;
+  letter-spacing: 0.2em;
+}
+
+.poster-avatar {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: #3d2314;
+  border: 4px solid #8b4513;
+  box-shadow: 0 0 0 3px #c9a227, inset 0 0 20px rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 8px;
+  overflow: hidden;
+}
+
+.poster-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.avatar-initial {
+  font-size: 36px;
+  color: #f5f0dc;
+  font-weight: bold;
+}
+
+.poster-name {
+  font-size: 24px;
+  font-weight: bold;
+  color: #2d1810;
+  margin-bottom: 12px;
+}
+
+.poster-description-box {
+  position: relative;
+  width: 100%;
+  flex: 1;
+  min-height: 200px;
+  max-height: 280px;
+  background: rgba(255,255,255,0.7);
+  border: 2px double #8b4513;
+  padding: 30px 20px 20px;
+  margin-bottom: 16px;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.desc-label {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 14px;
+  color: #8b4513;
+  background: #efe8d5;
+  padding: 0 12px;
+  letter-spacing: 0.2em;
+}
+
+.desc-content {
+  font-size: 18px;
+  color: #2d1810;
+  line-height: 1.6;
+  text-align: justify;
+  word-break: break-all;
+  overflow: hidden;
+  padding-top: 8px;
+}
+
+.poster-bounty {
+  width: 100%;
+  text-align: center;
+  padding: 12px;
+  border: 2px dashed #8b0000;
+  background: rgba(255,240,240,0.6);
+  margin-bottom: 12px;
+}
+
+.bounty-label {
+  font-size: 22px;
+  font-weight: bold;
+  color: #8b0000;
+  letter-spacing: 0.1em;
+}
+
+.bounty-amount {
+  font-size: 28px;
+  font-weight: 900;
+  color: #cc0000;
+  margin-left: 10px;
+}
+
+.poster-seal-bottom {
+  font-size: 12px;
+  color: #cc0000;
+  border: 2px solid #cc0000;
+  padding: 4px 10px;
+  transform: rotate(-3deg);
+  position: absolute;
+  bottom: 20px;
+  right: 30px;
+  letter-spacing: 0.1em;
+}
+
+/* Admin 打印按钮样式 */
+.btn-print {
+  background: #8b4513;
+  color: #f5f0dc;
+  border: 1px solid #5d3a1a;
+  padding: 4px 10px;
+  margin-right: 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.btn-print:hover {
+  background: #a0522d;
+}

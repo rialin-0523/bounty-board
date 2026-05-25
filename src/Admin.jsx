@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
+import { jsPDF } from 'jspdf'
+import html2canvas from 'html2canvas'
 import './Admin.css'
+import './BountyPoster.css'
 
 const ADMIN_PASSWORD = 'bounty2024'
 
@@ -105,6 +108,67 @@ function Admin() {
       await supabase.from('tasks').delete().eq('id', id)
       fetchData()
     }
+  }
+
+  async function printBountyPoster(task) {
+    const posterEl = document.createElement('div')
+    posterEl.className = 'bounty-poster-print-container'
+    posterEl.innerHTML = `
+      <div class="bounty-poster">
+        <div class="poster-border">
+          <div class="poster-content">
+            <div class="poster-title">悬 赏 令</div>
+            <div class="poster-seals">
+              <span class="seal-left">沧海城印</span>
+              <span class="seal-right">沧海城印</span>
+            </div>
+            <div class="poster-label-box">
+              <span class="label-text">悬榜人</span>
+            </div>
+            <div class="poster-avatar ${task.poster_avatar_url ? 'has-image' : ''}">
+              ${task.poster_avatar_url ? `<img src="${task.poster_avatar_url}" alt="${task.poster_nickname}" />` : `<span class="avatar-initial">${task.poster_nickname?.charAt(0) || '?'}</span>`}
+            </div>
+            <div class="poster-name">${task.poster_nickname}</div>
+            <div class="poster-description-box">
+              <span class="desc-label">详述</span>
+              <div class="desc-content" data-font-size="auto">${task.description}</div>
+            </div>
+            <div class="poster-bounty">
+              <span class="bounty-label">赏金：</span>
+              <span class="bounty-amount">${task.bounty}</span>
+            </div>
+            <div class="poster-seal-bottom">赏金刑重</div>
+          </div>
+        </div>
+      </div>
+    `
+    document.body.appendChild(posterEl)
+
+    // 自适应字体大小
+    const descContent = posterEl.querySelector('.desc-content')
+    const descBox = posterEl.querySelector('.poster-description-box')
+    let fontSize = 18
+    descContent.style.fontSize = fontSize + 'px'
+    while (descContent.scrollHeight > descContent.clientHeight && fontSize > 8) {
+      fontSize -= 1
+      descContent.style.fontSize = fontSize + 'px'
+    }
+
+    await html2canvas(posterEl.querySelector('.bounty-poster'), {
+      scale: 2,
+      useCORS: true,
+      allowTaint: true,
+      backgroundColor: null,
+      width: 595,
+      height: 842
+    }).then(canvas => {
+      const imgData = canvas.toDataURL('image/png')
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: [595, 842] })
+      pdf.addImage(imgData, 'PNG', 0, 0, 595, 842)
+      pdf.save(`悬赏令_${task.poster_nickname}_${Date.now()}.pdf`)
+    })
+
+    document.body.removeChild(posterEl)
   }
 
   function editTask(task) {
@@ -279,6 +343,7 @@ function Admin() {
                         <td>{hunter?.nickname || '-'}</td>
                         <td>
                           <button onClick={() => editTask(task)}>编辑</button>
+                          <button onClick={() => printBountyPoster(task)} className="btn-print">打印</button>
                           <button onClick={() => deleteTask(task.id)} className="btn-danger">删除</button>
                         </td>
                       </tr>

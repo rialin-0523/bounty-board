@@ -93,7 +93,11 @@ function BountyBoard() {
               <span className="card-type">{type.short}</span>
             </div>
             <div className="card-avatar-section">
-              <div className="card-avatar">{avatar.initial}</div>
+              {task.poster_avatar_url ? (
+                <img className="card-avatar-img" src={task.poster_avatar_url} alt={task.poster_nickname} />
+              ) : (
+                <div className="card-avatar">{avatar.initial}</div>
+              )}
               <div className="card-poster-name">{task.poster_nickname}</div>
             </div>
             <div className="card-description">{task.description}</div>
@@ -143,7 +147,11 @@ function BountyBoard() {
             </div>
 
             <div className="modal-avatar-section">
-              <div className="modal-avatar">{avatar.initial}</div>
+              {task.poster_avatar_url ? (
+                <img className="modal-avatar-img" src={task.poster_avatar_url} alt={task.poster_nickname} />
+              ) : (
+                <div className="modal-avatar">{avatar.initial}</div>
+              )}
               <div className="modal-poster-name">{task.poster_nickname}</div>
               <div className="modal-poster-label">出 榜 人</div>
             </div>

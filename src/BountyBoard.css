@@ -509,6 +509,31 @@ body {
   }
 }
 
+.card-avatar-img {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--amber-900);
+  box-shadow:
+    inset 0 2px 4px rgba(0, 0, 0, 0.2),
+    0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+@media (min-width: 640px) {
+  .card-avatar-img {
+    width: 48px;
+    height: 48px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .card-avatar-img {
+    width: 56px;
+    height: 56px;
+  }
+}
+
 .card-poster-name {
   font-family: 'ZCOOL XiaoWei', serif;
   font-size: 0.875rem;
@@ -628,7 +653,6 @@ body {
   border-radius: 16px 16px 0 0;
   overflow: hidden;
   max-height: 90vh;
-  overflow-y: auto;
   background: linear-gradient(180deg, var(--amber-100) 0%, var(--amber-200) 10%, #f5f0dc 30%, #fef9e7 70%, var(--amber-200) 90%, var(--amber-100) 100%);
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
 }
@@ -636,7 +660,21 @@ body {
 @media (min-width: 640px) {
   .modal-content {
     border-radius: 12px;
-    max-height: auto;
+    max-height: 85vh;
+  }
+}
+
+.modal-inner {
+  position: relative;
+  padding: 24px 32px 32px;
+  max-height: calc(90vh - 80px);
+  overflow-y: auto;
+}
+
+@media (min-width: 640px) {
+  .modal-inner {
+    padding: 32px 40px 40px;
+    max-height: calc(85vh - 80px);
   }
 }
 
@@ -766,6 +804,22 @@ body {
   }
 }
 
+.modal-avatar-img {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 4px solid #451a03;
+  box-shadow: 0 0 0 2px #fbbf24, inset 0 3px 8px rgba(0, 0, 0, 0.2);
+}
+
+@media (min-width: 640px) {
+  .modal-avatar-img {
+    width: 112px;
+    height: 112px;
+  }
+}
+
 .modal-poster-name {
   font-size: 1rem;
   font-weight: 900;
@@ -812,6 +866,9 @@ body {
   line-height: 1.6;
   padding-top: 4px;
   margin: 0;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  word-break: break-all;
 }
 
 .modal-bounty-section {
