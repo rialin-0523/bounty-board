@@ -321,15 +321,54 @@ td button:hover {
 }
 
 @media (max-width: 768px) {
+  .admin {
+    padding: 12px;
+  }
+  
+  .admin-title {
+    font-size: 2rem;
+  }
+  
+  .panel {
+    padding: 16px;
+  }
+  
   .form-row {
     flex-direction: column;
   }
   
   table {
-    font-size: 0.85rem;
+    font-size: 0.75rem;
+    display: block;
+    overflow-x: auto;
   }
   
   th, td {
-    padding: 8px;
+    padding: 8px 6px;
+    white-space: nowrap;
+  }
+  
+  td button {
+    padding: 4px 8px;
+    font-size: 0.75rem;
+  }
+  
+  .btn-print {
+    padding: 4px 8px;
+    font-size: 0.75rem;
+    margin-bottom: 4px;
+  }
+  
+  .form h3 {
+    font-size: 1.4rem;
+  }
+  
+  .tabs {
+    flex-wrap: wrap;
+  }
+  
+  .tab {
+    padding: 10px 16px;
+    font-size: 0.9rem;
   }
 }
