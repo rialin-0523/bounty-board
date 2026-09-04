@@ -98,13 +98,9 @@ export default function HomePage() {
                   <span className="streamer-level">{s.level || 'LV0'}</span>
                 </div>
                 <div className="streamer-avatar-wrap">
-                  {s.avatar_url ? (
-                    <img className="streamer-avatar" src={s.avatar_url} alt={s.nickname} />
-                  ) : (
-                    <div className="streamer-avatar placeholder">
-                      {s.nickname?.charAt(0) || '?'}
-                    </div>
-                  )}
+                  <div className="streamer-avatar placeholder">
+                    {s.nickname?.charAt(0) || '?'}
+                  </div>
                   {s.is_live && <span className="streamer-live-badge">直播中</span>}
                 </div>
                 <div className="streamer-name">{s.nickname}</div>

@@ -24,7 +24,6 @@ const ADMIN_PASSWORD = 'bounty2024'
 const emptyStreamer = {
   nickname: '',
   douyu_id: '',
-  avatar_url: '',
   game_tag: 'CS2',
   level: 'LV1',
   room_id: '',
@@ -345,14 +344,6 @@ function Admin() {
                 </select>
               </label>
             </div>
-            <label>头像 URL（可选）
-              <input
-                value={streamerForm.avatar_url || ''}
-                onChange={e => setStreamerForm({ ...streamerForm, avatar_url: e.target.value })}
-                placeholder="https://... 直接粘贴图片链接"
-              />
-              {streamerForm.avatar_url && <img src={streamerForm.avatar_url} className="admin-preview-img" alt="" />}
-            </label>
             <label>简介
               <textarea value={streamerForm.description || ''} onChange={e => setStreamerForm({ ...streamerForm, description: e.target.value })} rows="2" />
             </label>
@@ -368,13 +359,12 @@ function Admin() {
               <table>
                 <thead>
                   <tr>
-                    <th>头像</th><th>昵称</th><th>游戏</th><th>等级</th><th>直播间</th><th>Rush币</th><th>Rush值</th><th>状态</th><th>操作</th>
+                    <th>昵称</th><th>游戏</th><th>等级</th><th>直播间</th><th>Rush币</th><th>Rush值</th><th>状态</th><th>操作</th>
                   </tr>
                 </thead>
                 <tbody>
                   {streamers.map(s => (
                     <tr key={s.id}>
-                      <td>{s.avatar_url ? <img src={s.avatar_url} className="admin-table-avatar" alt="" /> : <div className="admin-table-avatar placeholder">?</div>}</td>
                       <td>{s.nickname}</td>
                       <td>{s.game_tag}</td>
                       <td>{s.level}</td>

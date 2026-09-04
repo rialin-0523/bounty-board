@@ -205,15 +205,6 @@
 
 .admin-btn-danger:hover { background: #c40010; }
 
-.admin-preview-img {
-  display: block;
-  margin-top: 8px;
-  max-width: 100px;
-  max-height: 100px;
-  border-radius: 4px;
-  border: 1px solid #444;
-}
-
 /* 列表 */
 .admin-list h3 {
   color: #FFD700;
@@ -262,23 +253,6 @@
 .admin-row-hidden {
   background: rgba(230, 0, 18, 0.05);
   color: #aaa;
-}
-
-.admin-table-avatar {
-  width: 36px;
-  height: 36px;
-  border-radius: 4px;
-  object-fit: cover;
-  border: 1px solid #444;
-}
-
-.admin-table-avatar.placeholder {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #0a0a0a;
-  color: #FFD700;
-  font-weight: 900;
 }
 
 .admin-list button {

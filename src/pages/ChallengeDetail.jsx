@@ -138,11 +138,7 @@ export default function ChallengeDetail() {
 
           {streamer && (
             <div className="cd-streamer-row">
-              {streamer.avatar_url ? (
-                <img className="cd-streamer-avatar" src={streamer.avatar_url} alt={streamer.nickname} />
-              ) : (
-                <div className="cd-streamer-avatar placeholder">{streamer.nickname?.charAt(0)}</div>
-              )}
+              <div className="cd-streamer-avatar placeholder">{streamer.nickname?.charAt(0)}</div>
               <div>
                 <div className="cd-streamer-name">{streamer.nickname}</div>
                 <div className="cd-streamer-meta">{streamer.game_tag} · {streamer.level} · 直播间 {streamer.room_id}</div>

@@ -120,13 +120,9 @@ export default function ChallengeBoard() {
                     <div className="cb-card-border"></div>
                     <div className="cb-card-head">
                       <div className="cb-streamer-info">
-                        {streamer?.avatar_url ? (
-                          <img className="cb-streamer-avatar" src={streamer.avatar_url} alt={streamer.nickname} />
-                        ) : (
-                          <div className="cb-streamer-avatar placeholder">
-                            {streamer?.nickname?.charAt(0) || '?'}
-                          </div>
-                        )}
+                        <div className="cb-streamer-avatar placeholder">
+                          {streamer?.nickname?.charAt(0) || '?'}
+                        </div>
                         <div>
                           <div className="cb-streamer-name">{streamer?.nickname || '未知主播'}</div>
                           <div className="cb-streamer-meta">

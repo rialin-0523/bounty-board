@@ -5,6 +5,9 @@
 -- 启用 UUID 扩展
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
+-- 兼容旧版本：如果 streamers 表已存在且有 avatar_url 字段，删除它
+ALTER TABLE IF EXISTS streamers DROP COLUMN IF EXISTS avatar_url;
+
 -- ============================================================
 -- 1. 主播表
 -- ============================================================
@@ -12,7 +15,6 @@ CREATE TABLE IF NOT EXISTS streamers (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   nickname TEXT NOT NULL,
   douyu_id TEXT,                 -- 主播斗鱼ID（可选）
-  avatar_url TEXT,               -- 主播头像
   game_tag TEXT NOT NULL,        -- 游戏标签：CS2 / 户外 / 主机其他游戏 / 主机游戏 ...
   level TEXT,                    -- 等级：LV115 / LV102 ...
   room_id TEXT,                  -- 直播间ID（数字）

@@ -152,18 +152,6 @@ export async function deleteFollowOrder(id) {
 }
 
 // =========================================================
-// 工具：上传头像到 storage
-// =========================================================
-export async function uploadAvatar(file) {
-  const ext = file.name.split('.').pop()
-  const fileName = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`
-  const { error } = await supabase.storage.from('avatars').upload(fileName, file)
-  if (error) throw error
-  const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(fileName)
-  return publicUrl
-}
-
-// =========================================================
 // 礼物相关常量
 // =========================================================
 export const GIFT_TYPES = ['飞机', '火箭', '币']
