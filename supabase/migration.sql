@@ -12,6 +12,10 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 -- 1. streamers 不再被前端使用（保留表和数据，删 avatar_url 字段）
 ALTER TABLE IF EXISTS streamers DROP COLUMN IF EXISTS avatar_url;
 
+-- 1.5 先删掉所有依赖视图（视图依赖 boss_id 改类型时会被阻拦）
+DROP VIEW IF EXISTS challenges_with_hidden CASCADE;
+DROP VIEW IF EXISTS challenge_gifts CASCADE;
+
 -- 2. challenges: 先迁移数据，再删字段
 -- 2.1 boss_id 从 UUID 引用变成 TEXT 存昵称
 -- 先把列类型改成 TEXT（UUID → TEXT 转换），再 UPDATE 值，再 drop FK
@@ -27,10 +31,12 @@ BEGIN
     -- 把列类型改成 TEXT（UUID 会转成字符串形式）
     ALTER TABLE challenges ALTER COLUMN boss_id TYPE TEXT USING boss_id::TEXT;
     -- 再 UPDATE 把值替换成老板昵称
-    UPDATE challenges c
-    SET boss_id = COALESCE(b.nickname, b.douyu_id, 'unknown')
-    FROM bosses b
-    WHERE c.boss_id::UUID = b.id;
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'bosses') THEN
+      UPDATE challenges c
+      SET boss_id = COALESCE(b.nickname, b.douyu_id, 'unknown')
+      FROM bosses b
+      WHERE c.boss_id::UUID = b.id;
+    END IF;
   END IF;
 END $$;
 
@@ -44,10 +50,12 @@ BEGIN
   ) THEN
     ALTER TABLE follow_orders DROP CONSTRAINT IF EXISTS follow_orders_boss_id_fkey;
     ALTER TABLE follow_orders ALTER COLUMN boss_id TYPE TEXT USING boss_id::TEXT;
-    UPDATE follow_orders f
-    SET boss_id = COALESCE(b.nickname, b.douyu_id, 'unknown')
-    FROM bosses b
-    WHERE f.boss_id::UUID = b.id;
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'bosses') THEN
+      UPDATE follow_orders f
+      SET boss_id = COALESCE(b.nickname, b.douyu_id, 'unknown')
+      FROM bosses b
+      WHERE f.boss_id::UUID = b.id;
+    END IF;
   END IF;
 END $$;
 
