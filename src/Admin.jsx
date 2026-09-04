@@ -13,7 +13,6 @@ import {
   createFollowOrder,
   deleteFollowOrder,
   getOrCreateBoss,
-  uploadAvatar,
   GIFT_TYPES,
   GIFT_ICONS,
   GAME_TAGS,
@@ -272,17 +271,7 @@ function Admin() {
     }
   }
 
-  // 头像上传
-  async function handleAvatarUpload(e, setter, field) {
-    const file = e.target.files[0]
-    if (!file) return
-    try {
-      const url = await uploadAvatar(file)
-      setter(prev => ({ ...prev, [field]: url }))
-    } catch (err) {
-      alert('上传失败：' + err.message)
-    }
-  }
+  // 头像上传已移除，直接填 URL 即可
 
   if (!authenticated) {
     return (
@@ -356,8 +345,12 @@ function Admin() {
                 </select>
               </label>
             </div>
-            <label>头像
-              <input type="file" accept="image/*" onChange={e => handleAvatarUpload(e, setStreamerForm, 'avatar_url')} />
+            <label>头像 URL（可选）
+              <input
+                value={streamerForm.avatar_url || ''}
+                onChange={e => setStreamerForm({ ...streamerForm, avatar_url: e.target.value })}
+                placeholder="https://... 直接粘贴图片链接"
+              />
               {streamerForm.avatar_url && <img src={streamerForm.avatar_url} className="admin-preview-img" alt="" />}
             </label>
             <label>简介
