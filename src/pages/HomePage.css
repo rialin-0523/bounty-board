@@ -1,0 +1,244 @@
+/* 首页：红蓝黄赛车风 */
+.home-bg {
+  position: relative;
+  height: 240px;
+  background:
+    linear-gradient(180deg, rgba(10,10,10,0) 0%, #0a0a0a 100%),
+    linear-gradient(135deg, #0098EA 0%, #0098EA 35%, #ffffff 35%, #ffffff 42%, #E60012 42%, #E60012 100%);
+  overflow: hidden;
+}
+
+.home-bg-stripe {
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    135deg,
+    transparent 0 80px,
+    rgba(255, 255, 255, 0.04) 80px 82px
+  );
+}
+
+.home-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 20px 4px;
+  background: #0a0a0a;
+  border-bottom: 1px solid #222;
+  position: sticky;
+  top: 56px;
+  z-index: 20;
+  gap: 12px;
+}
+
+.home-filter-tabs {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  flex: 1;
+  scrollbar-width: none;
+}
+
+.home-filter-tabs::-webkit-scrollbar { display: none; }
+
+.home-tab {
+  background: #1a1a1a;
+  color: #aaa;
+  border: 1px solid #333;
+  padding: 6px 14px;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.home-tab.active {
+  background: #FFD700;
+  color: #0a0a0a;
+  border-color: #FFD700;
+  font-weight: 700;
+}
+
+.home-sort select {
+  background: #1a1a1a;
+  color: #FFD700;
+  border: 1px solid #FFD700;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 0.85rem;
+}
+
+.home-section-title {
+  display: inline-block;
+  background: #FFD700;
+  color: #0a0a0a;
+  font-weight: 900;
+  font-size: 1.1rem;
+  padding: 8px 20px;
+  margin: 16px 0 12px 20px;
+  transform: skewX(-10deg);
+}
+
+.home-section-title::before {
+  content: '';
+  display: inline-block;
+  transform: skewX(10deg);
+}
+
+.streamers-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  padding: 4px 16px 20px;
+}
+
+@media (min-width: 640px) {
+  .streamers-grid { grid-template-columns: repeat(3, 1fr); gap: 16px; }
+}
+@media (min-width: 1024px) {
+  .streamers-grid { grid-template-columns: repeat(4, 1fr); }
+}
+
+.streamer-card {
+  text-decoration: none;
+  color: inherit;
+  position: relative;
+}
+
+.streamer-card-inner {
+  position: relative;
+  background: linear-gradient(180deg, #fff5b3 0%, #ffe680 50%, #fff5b3 100%);
+  border-radius: 4px;
+  padding: 8px 10px 10px;
+  overflow: hidden;
+}
+
+.streamer-card-border {
+  position: absolute;
+  inset: 0;
+  border: 2px solid #1a1a1a;
+  pointer-events: none;
+}
+
+.streamer-card-head {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.7rem;
+  margin-bottom: 6px;
+}
+
+.streamer-game-tag {
+  background: #1a1a1a;
+  color: #FFD700;
+  padding: 2px 6px;
+  border-radius: 2px;
+  font-weight: 700;
+}
+
+.streamer-level {
+  background: #FFD700;
+  color: #1a1a1a;
+  padding: 2px 6px;
+  border-radius: 2px;
+  font-weight: 700;
+}
+
+.streamer-avatar-wrap {
+  position: relative;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  margin: 4px 0 8px;
+}
+
+.streamer-avatar {
+  width: 72px;
+  height: 72px;
+  border-radius: 2px;
+  object-fit: cover;
+  border: 2px solid #FFD700;
+  box-shadow: 0 0 0 2px #1a1a1a;
+}
+
+.streamer-avatar.placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #1a1a1a;
+  color: #FFD700;
+  font-size: 1.6rem;
+  font-weight: 900;
+}
+
+.streamer-live-badge {
+  position: absolute;
+  bottom: -4px;
+  right: 30%;
+  background: #00C853;
+  color: white;
+  font-size: 0.65rem;
+  padding: 2px 6px;
+  border-radius: 2px;
+  font-weight: 700;
+  border: 1px solid #1a1a1a;
+}
+
+.streamer-name {
+  text-align: center;
+  font-weight: 700;
+  color: #1a1a1a;
+  font-size: 0.95rem;
+  margin-bottom: 2px;
+}
+
+.streamer-room {
+  text-align: center;
+  font-size: 0.75rem;
+  color: #555;
+  margin-bottom: 8px;
+}
+
+.streamer-stats {
+  display: flex;
+  gap: 6px;
+}
+
+.streamer-stat {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.4);
+  border: 1px dashed #888;
+  padding: 6px 4px;
+  text-align: center;
+  border-radius: 2px;
+}
+
+.stat-num {
+  font-size: 0.95rem;
+  font-weight: 900;
+  color: #1a1a1a;
+}
+
+.stat-label {
+  font-size: 0.7rem;
+  color: #555;
+  margin-top: 2px;
+}
+
+.streamer-challenge-count {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: #E60012;
+  color: white;
+  font-size: 0.65rem;
+  padding: 2px 6px;
+  border-radius: 2px;
+  font-weight: 700;
+}
+
+.home-loading, .home-empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 60px 20px;
+  color: #888;
+}

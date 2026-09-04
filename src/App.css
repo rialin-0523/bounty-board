@@ -1,34 +1,171 @@
-.app {
+/* 全局赛车风基础样式 */
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
   min-height: 100vh;
+  font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
 }
 
-.nav {
-  display: flex;
-  justify-content: center;
-  gap: 20px;
-  padding: 20px;
-  background: rgba(0, 0, 0, 0.3);
-  border-bottom: 2px solid rgba(184, 134, 11, 0.3);
-  margin-bottom: 20px;
+body {
+  background: #0a0a0a;
+  color: #f5f5f5;
+  overflow-x: hidden;
 }
 
-.nav-btn {
-  padding: 12px 30px;
-  font-size: 1.1rem;
-  font-family: 'Ma Shan Zheng', cursive;
-  background: transparent;
-  border: 2px solid #B8860B;
-  border-radius: 8px;
-  color: #B8860B;
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font-family: inherit;
   cursor: pointer;
-  transition: all 0.3s;
 }
 
-.nav-btn:hover {
-  background: rgba(184, 134, 11, 0.2);
+/* 顶部品牌条 */
+.app-brand {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  background: linear-gradient(90deg, #0a0a0a 0%, #1a1a1a 50%, #0a0a0a 100%);
+  border-bottom: 2px solid #FFD700;
 }
 
-.nav-btn.active {
-  background: #B8860B;
-  color: #1a1a1a;
+.brand-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.brand-logo {
+  background: #FFD700;
+  color: #0a0a0a;
+  font-weight: 900;
+  padding: 6px 12px;
+  font-size: 1rem;
+  transform: skewX(-10deg);
+  letter-spacing: 0.05em;
+}
+
+.brand-logo-text {
+  transform: skewX(10deg);
+  display: inline-block;
+}
+
+.brand-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #f5f5f5;
+}
+
+.brand-season {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 215, 0, 0.1);
+  border: 1px solid #FFD700;
+  padding: 6px 12px;
+  border-radius: 4px;
+  color: #FFD700;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
+
+.season-dot {
+  width: 8px;
+  height: 8px;
+  background: #FFD700;
+  border-radius: 50%;
+  box-shadow: 0 0 6px #FFD700;
+}
+
+/* 底部导航 */
+.app-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  display: flex;
+  background: #0a0a0a;
+  border-top: 1px solid #333;
+  padding: 8px 0;
+}
+
+.nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px;
+  color: #888;
+  text-decoration: none;
+  font-size: 0.75rem;
+  transition: color 0.2s;
+}
+
+.nav-item.active {
+  color: #FFD700;
+  background: rgba(255, 215, 0, 0.05);
+}
+
+.nav-icon {
+  font-size: 1.4rem;
+}
+
+.nav-label {
+  font-weight: 500;
+}
+
+/* 内容容器 */
+.app-content {
+  padding-bottom: 80px; /* 留出底部 nav 空间 */
+}
+
+/* 通用按钮 */
+.btn-primary {
+  background: #FFD700;
+  color: #0a0a0a;
+  border: none;
+  padding: 8px 18px;
+  font-weight: 700;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  transition: all 0.2s;
+}
+
+.btn-primary:hover {
+  background: #FFC700;
+  transform: translateY(-1px);
+}
+
+.btn-secondary {
+  background: transparent;
+  color: #FFD700;
+  border: 1px solid #FFD700;
+  padding: 8px 18px;
+  font-weight: 600;
+  border-radius: 4px;
+}
+
+.btn-danger {
+  background: #e53e3e;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 0.8rem;
 }

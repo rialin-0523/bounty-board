@@ -1,35 +1,114 @@
-import { useState, useEffect } from 'react'
-import { supabase } from './lib/supabase'
-import { jsPDF } from 'jspdf'
-import html2canvas from 'html2canvas'
+import { useState, useEffect, Fragment } from 'react'
+import {
+  listStreamers,
+  createStreamer,
+  updateStreamer,
+  deleteStreamer,
+  listMainChallengesWithHidden,
+  listChallenges,
+  createChallenge,
+  updateChallenge,
+  deleteChallenge,
+  listFollowOrders,
+  createFollowOrder,
+  deleteFollowOrder,
+  getOrCreateBoss,
+  uploadAvatar,
+  GIFT_TYPES,
+  GIFT_ICONS,
+  GAME_TAGS,
+} from './lib/api'
 import './Admin.css'
-import './BountyPoster.css'
 
 const ADMIN_PASSWORD = 'bounty2024'
+
+const emptyStreamer = {
+  nickname: '',
+  douyu_id: '',
+  avatar_url: '',
+  game_tag: 'CS2',
+  level: 'LV1',
+  room_id: '',
+  rush_coin: 0,
+  rush_value: 0,
+  is_live: true,
+  description: '',
+}
+
+const emptyChallenge = {
+  streamer_id: '',
+  boss_douyu_id: '',
+  boss_nickname: '',
+  title: '',
+  description: '',
+  condition_desc: '',
+  gift_type: '飞机',
+  gift_quantity: 1,
+  is_hidden: false,
+  parent_challenge_id: '',
+  status: 'active',
+}
+
+const emptyFollow = {
+  challenge_id: '',
+  boss_douyu_id: '',
+  boss_nickname: '',
+  gift_type: '飞机',
+  gift_quantity: 1,
+}
 
 function Admin() {
   const [authenticated, setAuthenticated] = useState(false)
   const [password, setPassword] = useState('')
-  const [tasks, setTasks] = useState([])
-  const [hunters, setHunters] = useState([])
+  const [activeTab, setActiveTab] = useState('streamers')
+  const [streamers, setStreamers] = useState([])
+  const [challenges, setChallenges] = useState([])
+  const [allChallenges, setAllChallenges] = useState([])
+  const [followOrders, setFollowOrders] = useState([])
   const [loading, setLoading] = useState(true)
-  const [taskForm, setTaskForm] = useState({
-    title: '',
-    description: '',
-    bounty: '',
-    status: '寻好汉',
-    task_type: '独行赏',
-    poster_nickname: '',
-    poster_avatar_url: '',
-    hunters_id: ''
-  })
-  const [hunterForm, setHunterForm] = useState({
-    nickname: '',
-    avatar_url: ''
-  })
-  const [editingTask, setEditingTask] = useState(null)
-  const [editingHunter, setEditingHunter] = useState(null)
-  const [activeTab, setActiveTab] = useState('tasks')
+
+  // 表单状态
+  const [streamerForm, setStreamerForm] = useState(emptyStreamer)
+  const [editingStreamer, setEditingStreamer] = useState(null)
+  const [challengeForm, setChallengeForm] = useState(emptyChallenge)
+  const [editingChallenge, setEditingChallenge] = useState(null)
+  const [followForm, setFollowForm] = useState(emptyFollow)
+
+  useEffect(() => {
+    if (authenticated) fetchData()
+  }, [authenticated])
+
+  async function fetchData() {
+    setLoading(true)
+    try {
+      const [ss, cs, allC, fos] = await Promise.all([
+        listStreamers(),
+        listMainChallengesWithHidden(),
+        listChallenges(),
+        loadAllFollowOrders(),
+      ])
+      setStreamers(ss)
+      setChallenges(cs)
+      setAllChallenges(allC)
+      setFollowOrders(fos)
+    } catch (e) {
+      console.error(e)
+      alert('加载失败：' + e.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function loadAllFollowOrders() {
+    // 简单起见：拉所有主+隐藏的跟单
+    const all = await listChallenges()
+    const all2 = []
+    for (const c of all) {
+      const os = await listFollowOrders(c.id)
+      os.forEach(o => all2.push({ ...o, challenge_title: c.title }))
+    }
+    return all2
+  }
 
   function handleLogin(e) {
     e.preventDefault()
@@ -41,204 +120,175 @@ function Admin() {
     }
   }
 
-  useEffect(() => {
-    if (authenticated) fetchData()
-  }, [authenticated])
-
-  async function fetchData() {
-    setLoading(true)
-    const [tasksRes, huntersRes] = await Promise.all([
-      supabase.from('tasks').select('*').order('created_at', { ascending: false }),
-      supabase.from('hunters').select('*')
-    ])
-    if (tasksRes.data) setTasks(tasksRes.data)
-    if (huntersRes.data) setHunters(huntersRes.data)
-    setLoading(false)
-  }
-
-  async function uploadImage(file, type) {
-    const fileExt = file.name.split('.').pop()
-    const fileName = `${Date.now()}.${fileExt}`
-    const path = type === 'hunter' ? `hunters/${fileName}` : fileName
-    const { data, error } = await supabase.storage
-      .from('avatars')
-      .upload(path, file)
-    if (error) {
-      alert('上传失败: ' + error.message)
-      return null
-    }
-    const { data: { publicUrl } } = supabase.storage
-      .from('avatars')
-      .getPublicUrl(path)
-    return publicUrl
-  }
-
-  async function handleTaskSubmit(e) {
+  // ================== Streamer CRUD ==================
+  async function handleStreamerSubmit(e) {
     e.preventDefault()
-    console.log('提交任务:', taskForm)
-    setLoading(true)
-    const cleanForm = {
-      ...taskForm,
-      hunters_id: taskForm.hunters_id || null,
-      poster_avatar_url: taskForm.poster_avatar_url || null
+    try {
+      if (editingStreamer) {
+        await updateStreamer(editingStreamer.id, streamerForm)
+        alert('更新成功')
+      } else {
+        await createStreamer(streamerForm)
+        alert('创建成功')
+      }
+      setStreamerForm(emptyStreamer)
+      setEditingStreamer(null)
+      fetchData()
+    } catch (err) {
+      alert('操作失败：' + err.message)
+    }
+  }
+
+  function editStreamer(s) {
+    setStreamerForm({ ...s })
+    setEditingStreamer(s)
+  }
+
+  async function handleStreamerDelete(id) {
+    if (!confirm('确定删除该主播？相关挑战也会被删除。')) return
+    try {
+      await deleteStreamer(id)
+      fetchData()
+    } catch (err) {
+      alert('删除失败：' + err.message)
+    }
+  }
+
+  // ================== Challenge CRUD ==================
+  async function handleChallengeSubmit(e) {
+    e.preventDefault()
+    if (parseInt(challengeForm.gift_quantity) <= 0) {
+      alert('礼物数量必须为正整数')
+      return
+    }
+    if (challengeForm.is_hidden && !challengeForm.parent_challenge_id) {
+      alert('隐藏任务必须关联一个主任务')
+      return
+    }
+    if (!challengeForm.is_hidden && challengeForm.parent_challenge_id) {
+      alert('主任务不能关联其他任务')
+      return
     }
     try {
-      if (editingTask) {
-        const { error } = await supabase.from('tasks').update(cleanForm).eq('id', editingTask.id)
-        if (error) alert('更新失败: ' + error.message)
-      } else {
-        const { data, error } = await supabase.from('tasks').insert(cleanForm)
-        console.log('插入结果:', data, error)
-        if (error) {
-          alert('创建失败: ' + error.message)
-        } else {
-          alert('创建成功！')
-        }
+      // 1. 创建/获取 boss
+      let bossId = null
+      if (challengeForm.boss_douyu_id) {
+        const boss = await getOrCreateBoss(
+          challengeForm.boss_douyu_id,
+          challengeForm.boss_nickname || null
+        )
+        bossId = boss.id
       }
-    } catch (err) {
-      alert('操作失败: ' + err.message)
-    }
-    resetTaskForm()
-    fetchData()
-    setLoading(false)
-  }
-
-  async function deleteTask(id) {
-    if (confirm('确定删除此悬赏令？')) {
-      await supabase.from('tasks').delete().eq('id', id)
+      const payload = {
+        streamer_id: challengeForm.streamer_id || null,
+        boss_id: bossId,
+        title: challengeForm.title,
+        description: challengeForm.description || null,
+        condition_desc: challengeForm.condition_desc || null,
+        gift_type: challengeForm.gift_type,
+        gift_quantity: parseInt(challengeForm.gift_quantity),
+        is_hidden: challengeForm.is_hidden,
+        parent_challenge_id: challengeForm.is_hidden ? challengeForm.parent_challenge_id : null,
+        status: challengeForm.status,
+      }
+      if (editingChallenge) {
+        await updateChallenge(editingChallenge.id, payload)
+        alert('更新成功')
+      } else {
+        await createChallenge(payload)
+        alert('创建成功')
+      }
+      setChallengeForm(emptyChallenge)
+      setEditingChallenge(null)
       fetchData()
+    } catch (err) {
+      alert('操作失败：' + err.message)
     }
   }
 
-  async function printBountyPoster(task) {
-    const posterEl = document.createElement('div')
-    posterEl.className = 'bounty-poster-print-container'
-    posterEl.innerHTML = `
-      <div class="bounty-poster">
-        <div class="poster-border">
-          <div class="poster-content">
-            <div class="poster-title">悬 赏 令</div>
-            <div class="poster-seals">
-              <span class="seal-left">沧海城印</span>
-              <span class="seal-right">沧海城印</span>
-            </div>
-            <div class="poster-label-box">
-              <span class="label-text">悬榜人</span>
-            </div>
-            <div class="poster-avatar ${task.poster_avatar_url ? 'has-image' : ''}">
-              ${task.poster_avatar_url ? `<img src="${task.poster_avatar_url}" alt="${task.poster_nickname}" />` : `<span class="avatar-initial">${task.poster_nickname?.charAt(0) || '?'}</span>`}
-            </div>
-            <div class="poster-name">${task.poster_nickname}</div>
-            <div class="poster-description-box">
-              <span class="desc-label">详述</span>
-              <div class="desc-content" data-font-size="auto">${task.description}</div>
-            </div>
-            <div class="poster-bounty">
-              <span class="bounty-label">赏金：</span>
-              <span class="bounty-amount">${task.bounty}</span>
-            </div>
-            <div class="poster-seal-bottom">赏金刑重</div>
-          </div>
-        </div>
-      </div>
-    `
-    document.body.appendChild(posterEl)
+  function editChallenge(c) {
+    setChallengeForm({
+      ...emptyChallenge,
+      ...c,
+      streamer_id: c.streamer_id || '',
+      boss_douyu_id: '', // 不展示，回填时查询
+      boss_nickname: '',
+      parent_challenge_id: c.parent_challenge_id || '',
+    })
+    setEditingChallenge(c)
+  }
 
-    // 自适应字体大小
-    const descContent = posterEl.querySelector('.desc-content')
-    const descBox = posterEl.querySelector('.poster-description-box')
-    let fontSize = 18
-    descContent.style.fontSize = fontSize + 'px'
-    while (descContent.scrollHeight > descContent.clientHeight && fontSize > 8) {
-      fontSize -= 1
-      descContent.style.fontSize = fontSize + 'px'
+  async function handleChallengeDelete(id) {
+    if (!confirm('确定删除该挑战？隐藏任务和跟单也会被删除。')) return
+    try {
+      await deleteChallenge(id)
+      fetchData()
+    } catch (err) {
+      alert('删除失败：' + err.message)
     }
-
-    await html2canvas(posterEl.querySelector('.bounty-poster'), {
-      scale: 2,
-      useCORS: true,
-      allowTaint: true,
-      backgroundColor: null,
-      width: 595,
-      height: 842
-    }).then(canvas => {
-      const imgData = canvas.toDataURL('image/png')
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: [595, 842] })
-      pdf.addImage(imgData, 'PNG', 0, 0, 595, 842)
-      pdf.save(`悬赏令_${task.poster_nickname}_${Date.now()}.pdf`)
-    })
-
-    document.body.removeChild(posterEl)
   }
 
-  function editTask(task) {
-    setTaskForm({ ...task })
-    setEditingTask(task)
-  }
-
-  function resetTaskForm() {
-    setTaskForm({
-      title: '',
-      description: '',
-      bounty: '',
-      status: '寻好汉',
-      task_type: '独行赏',
-      poster_nickname: '',
-      poster_avatar_url: '',
-      hunters_id: ''
-    })
-    setEditingTask(null)
-  }
-
-  async function handleHunterSubmit(e) {
+  // ================== Follow Order CRUD ==================
+  async function handleFollowSubmit(e) {
     e.preventDefault()
-    setLoading(true)
-    const cleanForm = {
-      ...hunterForm,
-      avatar_url: hunterForm.avatar_url || null
+    if (parseInt(followForm.gift_quantity) <= 0) {
+      alert('数量必须为正整数')
+      return
+    }
+    if (!followForm.challenge_id) {
+      alert('请选择挑战')
+      return
     }
     try {
-      if (editingHunter) {
-        const { error } = await supabase.from('hunters').update(cleanForm).eq('id', editingHunter.id)
-        if (error) alert('更新失败: ' + error.message)
-      } else {
-        const { data, error } = await supabase.from('hunters').insert(cleanForm)
-        if (error) {
-          alert('创建失败: ' + error.message)
-        } else {
-          alert('创建成功！')
-        }
+      let bossId = null
+      if (followForm.boss_douyu_id) {
+        const boss = await getOrCreateBoss(
+          followForm.boss_douyu_id,
+          followForm.boss_nickname || null
+        )
+        bossId = boss.id
       }
-    } catch (err) {
-      alert('操作失败: ' + err.message)
-    }
-    resetHunterForm()
-    fetchData()
-    setLoading(false)
-  }
-
-  async function deleteHunter(id) {
-    if (confirm('确定删除此揭榜人？')) {
-      await supabase.from('hunters').delete().eq('id', id)
+      await createFollowOrder({
+        challenge_id: followForm.challenge_id,
+        boss_id: bossId,
+        gift_type: followForm.gift_type,
+        gift_quantity: parseInt(followForm.gift_quantity),
+      })
+      alert('跟单成功')
+      setFollowForm(emptyFollow)
       fetchData()
+    } catch (err) {
+      alert('操作失败：' + err.message)
     }
   }
 
-  function editHunter(hunter) {
-    setHunterForm({ ...hunter })
-    setEditingHunter(hunter)
+  async function handleFollowDelete(id) {
+    if (!confirm('确定删除此跟单？')) return
+    try {
+      await deleteFollowOrder(id)
+      fetchData()
+    } catch (err) {
+      alert('删除失败：' + err.message)
+    }
   }
 
-  function resetHunterForm() {
-    setHunterForm({ nickname: '', avatar_url: null })
-    setEditingHunter(null)
+  // 头像上传
+  async function handleAvatarUpload(e, setter, field) {
+    const file = e.target.files[0]
+    if (!file) return
+    try {
+      const url = await uploadAvatar(file)
+      setter(prev => ({ ...prev, [field]: url }))
+    } catch (err) {
+      alert('上传失败：' + err.message)
+    }
   }
 
   if (!authenticated) {
     return (
-      <div className="login-page">
-        <form className="login-form" onSubmit={handleLogin}>
-          <h2>运营后台登录</h2>
+      <div className="admin-login">
+        <form className="admin-login-form" onSubmit={handleLogin}>
+          <h2>突围特工队 · 运营后台</h2>
           <input
             type="password"
             placeholder="请输入管理密码"
@@ -253,102 +303,98 @@ function Admin() {
 
   return (
     <div className="admin">
-      <h1 className="admin-title">运营后台</h1>
-      <div className="tabs">
-        <button className={`tab ${activeTab === 'tasks' ? 'active' : ''}`} onClick={() => setActiveTab('tasks')}>
-          悬赏令管理
+      <h1 className="admin-title">突围特工队 · 后台管理</h1>
+
+      <div className="admin-tabs">
+        <button className={`admin-tab ${activeTab === 'streamers' ? 'active' : ''}`} onClick={() => setActiveTab('streamers')}>
+          主播管理 ({streamers.length})
         </button>
-        <button className={`tab ${activeTab === 'hunters' ? 'active' : ''}`} onClick={() => setActiveTab('hunters')}>
-          揭榜人管理
+        <button className={`admin-tab ${activeTab === 'challenges' ? 'active' : ''}`} onClick={() => setActiveTab('challenges')}>
+          挑战管理 ({challenges.length})
+        </button>
+        <button className={`admin-tab ${activeTab === 'follows' ? 'active' : ''}`} onClick={() => setActiveTab('follows')}>
+          跟单管理 ({followOrders.length})
         </button>
       </div>
 
-      {activeTab === 'tasks' && (
-        <div className="panel">
-          <form className="form" onSubmit={handleTaskSubmit}>
-            <h3>{editingTask ? '编辑悬赏令' : '创建悬赏令'}</h3>
-            <div className="form-group">
-              <label>标题</label>
-              <input type="text" value={taskForm.title} onChange={e => setTaskForm({ ...taskForm, title: e.target.value })} required />
+      {activeTab === 'streamers' && (
+        <div className="admin-panel">
+          <form className="admin-form" onSubmit={handleStreamerSubmit}>
+            <h3>{editingStreamer ? '编辑主播' : '新建主播'}</h3>
+            <div className="admin-form-row">
+              <label>昵称
+                <input value={streamerForm.nickname} onChange={e => setStreamerForm({ ...streamerForm, nickname: e.target.value })} required />
+              </label>
+              <label>斗鱼ID
+                <input value={streamerForm.douyu_id || ''} onChange={e => setStreamerForm({ ...streamerForm, douyu_id: e.target.value })} />
+              </label>
             </div>
-            <div className="form-group">
-              <label>任务描述</label>
-              <textarea value={taskForm.description} onChange={e => setTaskForm({ ...taskForm, description: e.target.value })} rows="3" />
-            </div>
-            <div className="form-row">
-              <div className="form-group">
-                <label>赏金</label>
-                <input type="text" value={taskForm.bounty} onChange={e => setTaskForm({ ...taskForm, bounty: e.target.value })} required />
-              </div>
-              <div className="form-group">
-                <label>状态</label>
-                <select value={taskForm.status} onChange={e => setTaskForm({ ...taskForm, status: e.target.value })}>
-                  <option value="寻好汉">寻好汉</option>
-                  <option value="已揭榜">已揭榜</option>
-                  <option value="来领赏">来领赏</option>
-                  <option value="收榜">收榜</option>
+            <div className="admin-form-row">
+              <label>游戏类型
+                <select value={streamerForm.game_tag} onChange={e => setStreamerForm({ ...streamerForm, game_tag: e.target.value })}>
+                  {GAME_TAGS.map(g => <option key={g} value={g}>{g}</option>)}
                 </select>
-              </div>
-              <div className="form-group">
-                <label>类型</label>
-                <select value={taskForm.task_type} onChange={e => setTaskForm({ ...taskForm, task_type: e.target.value })}>
-                  <option value="独行赏">独行赏</option>
-                  <option value="群英令">群英令</option>
+              </label>
+              <label>等级
+                <input value={streamerForm.level || ''} onChange={e => setStreamerForm({ ...streamerForm, level: e.target.value })} placeholder="LV115" />
+              </label>
+              <label>直播间
+                <input value={streamerForm.room_id || ''} onChange={e => setStreamerForm({ ...streamerForm, room_id: e.target.value })} placeholder="123456" />
+              </label>
+            </div>
+            <div className="admin-form-row">
+              <label>Rush币
+                <input type="number" value={streamerForm.rush_coin} onChange={e => setStreamerForm({ ...streamerForm, rush_coin: parseInt(e.target.value) || 0 })} />
+              </label>
+              <label>Rush值
+                <input type="number" value={streamerForm.rush_value} onChange={e => setStreamerForm({ ...streamerForm, rush_value: parseInt(e.target.value) || 0 })} />
+              </label>
+              <label>是否直播
+                <select value={streamerForm.is_live ? 'true' : 'false'} onChange={e => setStreamerForm({ ...streamerForm, is_live: e.target.value === 'true' })}>
+                  <option value="true">直播中</option>
+                  <option value="false">未开播</option>
                 </select>
-              </div>
+              </label>
             </div>
-            <div className="form-group">
-              <label>出榜人昵称</label>
-              <input type="text" value={taskForm.poster_nickname} onChange={e => setTaskForm({ ...taskForm, poster_nickname: e.target.value })} required />
-            </div>
-            <div className="form-group">
-              <label>出榜人头像</label>
-              <input type="file" accept="image/*" onChange={async e => {
-                const url = await uploadImage(e.target.files[0], 'poster')
-                if (url) setTaskForm({ ...taskForm, poster_avatar_url: url })
-              }} />
-              {taskForm.poster_avatar_url && <img src={taskForm.poster_avatar_url} alt="预览" className="preview-img" />}
-            </div>
-            <div className="form-group">
-              <label>揭榜人</label>
-              <select value={taskForm.hunters_id} onChange={e => setTaskForm({ ...taskForm, hunters_id: e.target.value })}>
-                <option value="">无</option>
-                {hunters.map(h => <option key={h.id} value={h.id}>{h.nickname}</option>)}
-              </select>
-            </div>
-            <div className="form-actions">
-              <button type="submit" className="btn btn-primary">{editingTask ? '保存修改' : '创建悬赏令'}</button>
-              {editingTask && <button type="button" className="btn btn-secondary" onClick={resetTaskForm}>取消</button>}
+            <label>头像
+              <input type="file" accept="image/*" onChange={e => handleAvatarUpload(e, setStreamerForm, 'avatar_url')} />
+              {streamerForm.avatar_url && <img src={streamerForm.avatar_url} className="admin-preview-img" alt="" />}
+            </label>
+            <label>简介
+              <textarea value={streamerForm.description || ''} onChange={e => setStreamerForm({ ...streamerForm, description: e.target.value })} rows="2" />
+            </label>
+            <div className="admin-form-actions">
+              <button type="submit" className="admin-btn-primary">{editingStreamer ? '保存' : '创建'}</button>
+              {editingStreamer && <button type="button" className="admin-btn-secondary" onClick={() => { setStreamerForm(emptyStreamer); setEditingStreamer(null) }}>取消</button>}
             </div>
           </form>
-          <div className="list">
-            <h3>悬赏令列表</h3>
-            {tasks.length === 0 ? <div className="empty">暂无悬赏令</div> : (
+
+          <div className="admin-list">
+            <h3>主播列表</h3>
+            {streamers.length === 0 ? <div className="admin-empty">暂无主播</div> : (
               <table>
                 <thead>
                   <tr>
-                    <th>标题</th><th>赏金</th><th>状态</th><th>类型</th><th>出榜人</th><th>揭榜人</th><th>操作</th>
+                    <th>头像</th><th>昵称</th><th>游戏</th><th>等级</th><th>直播间</th><th>Rush币</th><th>Rush值</th><th>状态</th><th>操作</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {tasks.map(task => {
-                    const hunter = hunters.find(h => h.id === task.hunters_id)
-                    return (
-                      <tr key={task.id}>
-                        <td>{task.title}</td>
-                        <td>{task.bounty}</td>
-                        <td><span className={`status-tag ${task.status}`}>{task.status}</span></td>
-                        <td>{task.task_type}</td>
-                        <td>{task.poster_nickname}</td>
-                        <td>{hunter?.nickname || '-'}</td>
-                        <td>
-                          <button onClick={() => editTask(task)}>编辑</button>
-                          <button onClick={() => printBountyPoster(task)} className="btn-print">打印</button>
-                          <button onClick={() => deleteTask(task.id)} className="btn-danger">删除</button>
-                        </td>
-                      </tr>
-                    )
-                  })}
+                  {streamers.map(s => (
+                    <tr key={s.id}>
+                      <td>{s.avatar_url ? <img src={s.avatar_url} className="admin-table-avatar" alt="" /> : <div className="admin-table-avatar placeholder">?</div>}</td>
+                      <td>{s.nickname}</td>
+                      <td>{s.game_tag}</td>
+                      <td>{s.level}</td>
+                      <td>{s.room_id}</td>
+                      <td>{s.rush_coin}</td>
+                      <td>{s.rush_value}</td>
+                      <td>{s.is_live ? '🟢 直播中' : '⚫ 离线'}</td>
+                      <td>
+                        <button onClick={() => editStreamer(s)}>编辑</button>
+                        <button className="admin-btn-danger" onClick={() => handleStreamerDelete(s.id)}>删除</button>
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             )}
@@ -356,44 +402,189 @@ function Admin() {
         </div>
       )}
 
-      {activeTab === 'hunters' && (
-        <div className="panel">
-          <form className="form" onSubmit={handleHunterSubmit}>
-            <h3>{editingHunter ? '编辑揭榜人' : '添加揭榜人'}</h3>
-            <div className="form-group">
-              <label>昵称</label>
-              <input type="text" value={hunterForm.nickname} onChange={e => setHunterForm({ ...hunterForm, nickname: e.target.value })} required />
+      {activeTab === 'challenges' && (
+        <div className="admin-panel">
+          <form className="admin-form" onSubmit={handleChallengeSubmit}>
+            <h3>{editingChallenge ? '编辑挑战' : '新建挑战'}</h3>
+            <div className="admin-form-row">
+              <label>目标主播
+                <select value={challengeForm.streamer_id} onChange={e => setChallengeForm({ ...challengeForm, streamer_id: e.target.value })}>
+                  <option value="">-- 选择主播 --</option>
+                  {streamers.map(s => <option key={s.id} value={s.id}>{s.nickname} ({s.game_tag})</option>)}
+                </select>
+              </label>
+              <label>任务类型
+                <select value={challengeForm.is_hidden ? 'hidden' : 'main'} onChange={e => setChallengeForm({ ...challengeForm, is_hidden: e.target.value === 'hidden' })}>
+                  <option value="main">主任务</option>
+                  <option value="hidden">隐藏任务</option>
+                </select>
+              </label>
+              <label>状态
+                <select value={challengeForm.status} onChange={e => setChallengeForm({ ...challengeForm, status: e.target.value })}>
+                  <option value="active">进行中</option>
+                  <option value="completed">已完成</option>
+                  <option value="cancelled">已取消</option>
+                </select>
+              </label>
             </div>
-            <div className="form-group">
-              <label>头像</label>
-              <input type="file" accept="image/*" onChange={async e => {
-                const url = await uploadImage(e.target.files[0], 'hunter')
-                if (url) setHunterForm({ ...hunterForm, avatar_url: url })
-              }} />
-              {hunterForm.avatar_url && <img src={hunterForm.avatar_url} alt="预览" className="preview-img" />}
+
+            {challengeForm.is_hidden && (
+              <label>关联主任务
+                <select value={challengeForm.parent_challenge_id} onChange={e => setChallengeForm({ ...challengeForm, parent_challenge_id: e.target.value })} required>
+                  <option value="">-- 选择主任务 --</option>
+                  {allChallenges.filter(c => c.parent_challenge_id == null && c.id !== editingChallenge?.id).map(c => (
+                    <option key={c.id} value={c.id}>{c.title}</option>
+                  ))}
+                </select>
+              </label>
+            )}
+
+            <label>标题
+              <input value={challengeForm.title} onChange={e => setChallengeForm({ ...challengeForm, title: e.target.value })} required />
+            </label>
+
+            <label>挑战条件
+              <input value={challengeForm.condition_desc || ''} onChange={e => setChallengeForm({ ...challengeForm, condition_desc: e.target.value })} placeholder="如：套圈数量最多者" />
+            </label>
+
+            <label>详细描述
+              <textarea value={challengeForm.description || ''} onChange={e => setChallengeForm({ ...challengeForm, description: e.target.value })} rows="3" />
+            </label>
+
+            <div className="admin-form-row">
+              <label>礼物类型
+                <select value={challengeForm.gift_type} onChange={e => setChallengeForm({ ...challengeForm, gift_type: e.target.value })}>
+                  {GIFT_TYPES.map(t => <option key={t} value={t}>{GIFT_ICONS[t]} {t}</option>)}
+                </select>
+              </label>
+              <label>数量（正整数）
+                <input type="number" min="1" step="1" value={challengeForm.gift_quantity} onChange={e => setChallengeForm({ ...challengeForm, gift_quantity: e.target.value })} required />
+              </label>
             </div>
-            <div className="form-actions">
-              <button type="submit" className="btn btn-primary">{editingHunter ? '保存修改' : '添加揭榜人'}</button>
-              {editingHunter && <button type="button" className="btn btn-secondary" onClick={resetHunterForm}>取消</button>}
+
+            <div className="admin-form-row">
+              <label>老板斗鱼ID
+                <input value={challengeForm.boss_douyu_id} onChange={e => setChallengeForm({ ...challengeForm, boss_douyu_id: e.target.value })} placeholder="必填" required />
+              </label>
+              <label>老板昵称（可选）
+                <input value={challengeForm.boss_nickname} onChange={e => setChallengeForm({ ...challengeForm, boss_nickname: e.target.value })} />
+              </label>
+            </div>
+
+            <div className="admin-form-actions">
+              <button type="submit" className="admin-btn-primary">{editingChallenge ? '保存' : '创建'}</button>
+              {editingChallenge && <button type="button" className="admin-btn-secondary" onClick={() => { setChallengeForm(emptyChallenge); setEditingChallenge(null) }}>取消</button>}
             </div>
           </form>
-          <div className="list">
-            <h3>揭榜人列表</h3>
-            {hunters.length === 0 ? <div className="empty">暂无揭榜人</div> : (
+
+          <div className="admin-list">
+            <h3>主任务列表（含隐藏任务）</h3>
+            {challenges.length === 0 ? <div className="admin-empty">暂无主任务</div> : (
               <table>
                 <thead>
-                  <tr><th>头像</th><th>昵称</th><th>操作</th></tr>
+                  <tr>
+                    <th>标题</th><th>主播</th><th>类型</th><th>礼物</th><th>数量</th><th>状态</th><th>操作</th>
+                  </tr>
                 </thead>
                 <tbody>
-                  {hunters.map(hunter => (
-                    <tr key={hunter.id}>
+                  {challenges.map(c => (
+                    <Fragment key={c.id}>
+                      <tr className="admin-row-main">
+                        <td>{c.title}</td>
+                        <td>{streamers.find(s => s.id === c.streamer_id)?.nickname || '-'}</td>
+                        <td>主任务</td>
+                        <td>{GIFT_ICONS[c.gift_type]} {c.gift_type}</td>
+                        <td>{c.gift_quantity}</td>
+                        <td>{c.status}</td>
+                        <td>
+                          <button onClick={() => editChallenge(c)}>编辑</button>
+                          <button className="admin-btn-danger" onClick={() => handleChallengeDelete(c.id)}>删除</button>
+                        </td>
+                      </tr>
+                      {c.hidden_challenges && c.hidden_challenges.map(h => (
+                        <tr key={h.id} className="admin-row-hidden">
+                          <td>↳ {h.title}</td>
+                          <td>{streamers.find(s => s.id === h.streamer_id)?.nickname || '-'}</td>
+                          <td>🎁 隐藏</td>
+                          <td>{GIFT_ICONS[h.gift_type]} {h.gift_type}</td>
+                          <td>{h.gift_quantity}</td>
+                          <td>{h.status}</td>
+                          <td>
+                            <button onClick={() => editChallenge(h)}>编辑</button>
+                            <button className="admin-btn-danger" onClick={() => handleChallengeDelete(h.id)}>删除</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </Fragment>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'follows' && (
+        <div className="admin-panel">
+          <form className="admin-form" onSubmit={handleFollowSubmit}>
+            <h3>新建跟单</h3>
+            <label>选择挑战
+              <select value={followForm.challenge_id} onChange={e => setFollowForm({ ...followForm, challenge_id: e.target.value })} required>
+                <option value="">-- 选择 --</option>
+                <optgroup label="主任务">
+                  {allChallenges.filter(c => c.parent_challenge_id == null).map(c => (
+                    <option key={c.id} value={c.id}>[主] {c.title}</option>
+                  ))}
+                </optgroup>
+                <optgroup label="隐藏任务">
+                  {allChallenges.filter(c => c.parent_challenge_id != null).map(c => (
+                    <option key={c.id} value={c.id}>[隐藏] {c.title}</option>
+                  ))}
+                </optgroup>
+              </select>
+            </label>
+            <div className="admin-form-row">
+              <label>老板斗鱼ID
+                <input value={followForm.boss_douyu_id} onChange={e => setFollowForm({ ...followForm, boss_douyu_id: e.target.value })} required />
+              </label>
+              <label>老板昵称（可选）
+                <input value={followForm.boss_nickname} onChange={e => setFollowForm({ ...followForm, boss_nickname: e.target.value })} />
+              </label>
+            </div>
+            <div className="admin-form-row">
+              <label>礼物类型
+                <select value={followForm.gift_type} onChange={e => setFollowForm({ ...followForm, gift_type: e.target.value })}>
+                  {GIFT_TYPES.map(t => <option key={t} value={t}>{GIFT_ICONS[t]} {t}</option>)}
+                </select>
+              </label>
+              <label>数量
+                <input type="number" min="1" step="1" value={followForm.gift_quantity} onChange={e => setFollowForm({ ...followForm, gift_quantity: e.target.value })} required />
+              </label>
+            </div>
+            <div className="admin-form-actions">
+              <button type="submit" className="admin-btn-primary">提交跟单</button>
+            </div>
+          </form>
+
+          <div className="admin-list">
+            <h3>跟单记录</h3>
+            {followOrders.length === 0 ? <div className="admin-empty">暂无跟单</div> : (
+              <table>
+                <thead>
+                  <tr>
+                    <th>挑战</th><th>老板斗鱼ID</th><th>礼物</th><th>数量</th><th>时间</th><th>操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {followOrders.map(o => (
+                    <tr key={o.id}>
+                      <td>{o.challenge_title}</td>
+                      <td>{o.boss_id || '-'}</td>
+                      <td>{GIFT_ICONS[o.gift_type]} {o.gift_type}</td>
+                      <td>{o.gift_quantity}</td>
+                      <td>{new Date(o.created_at).toLocaleString('zh-CN')}</td>
                       <td>
-                        {hunter.avatar_url ? <img src={hunter.avatar_url} alt={hunter.nickname} className="table-avatar" /> : <div className="table-avatar placeholder">侠</div>}
-                      </td>
-                      <td>{hunter.nickname}</td>
-                      <td>
-                        <button onClick={() => editHunter(hunter)}>编辑</button>
-                        <button onClick={() => deleteHunter(hunter.id)} className="btn-danger">删除</button>
+                        <button className="admin-btn-danger" onClick={() => handleFollowDelete(o.id)}>删除</button>
                       </td>
                     </tr>
                   ))}

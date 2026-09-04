@@ -1,374 +1,294 @@
-@import url('https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Serif+SC:wght@400;700&display=swap');
-
-:root {
-  --parchment: #f5e6c8;
-  --parchment-dark: #e8d4a8;
-  --ink: #2c1810;
-  --ink-light: #4a3728;
-  --seal-red: #8B0000;
-  --gold: #B8860B;
-  --border-brown: #8B4513;
-  --bg-dark: #1a1a1a;
-}
-
-* {
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-  padding: 20px;
-  background: var(--bg-dark);
-  min-height: 100vh;
-  font-family: 'Noto Serif SC', serif;
-}
-
-#root {
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
+/* Admin 后台 - 赛车风 */
 .admin {
+  background: #0a0a0a;
+  color: #f5f5f5;
+  min-height: 100vh;
   padding: 20px;
+  font-family: 'Noto Sans SC', 'PingFang SC', system-ui, sans-serif;
 }
 
 .admin-title {
-  font-family: 'Ma Shan Zheng', cursive;
-  font-size: 2.5rem;
-  color: var(--gold);
+  font-size: 1.6rem;
+  font-weight: 900;
+  color: #FFD700;
   text-align: center;
-  margin: 0 0 30px 0;
+  margin: 0 0 24px;
+  letter-spacing: 0.1em;
+  text-shadow: 0 0 12px rgba(255, 215, 0, 0.3);
+}
+
+/* 登录 */
+.admin-login {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    linear-gradient(180deg, rgba(0,0,0,0.5), #0a0a0a),
+    linear-gradient(135deg, #0098EA 0%, #1a1a1a 50%, #E60012 100%);
+}
+
+.admin-login-form {
+  background: #1a1a1a;
+  border: 2px solid #FFD700;
+  border-radius: 8px;
+  padding: 40px;
+  width: 90%;
+  max-width: 400px;
+  text-align: center;
+}
+
+.admin-login-form h2 {
+  color: #FFD700;
+  font-size: 1.4rem;
+  margin: 0 0 24px;
+}
+
+.admin-login-form input {
+  width: 100%;
+  background: #0a0a0a;
+  color: #FFD700;
+  border: 1px solid #FFD700;
+  padding: 12px;
+  border-radius: 4px;
+  font-size: 1rem;
+  margin-bottom: 16px;
+  box-sizing: border-box;
+}
+
+.admin-login-form button {
+  width: 100%;
+  background: #FFD700;
+  color: #0a0a0a;
+  border: none;
+  padding: 12px;
+  font-size: 1rem;
+  font-weight: 700;
+  border-radius: 4px;
+  cursor: pointer;
 }
 
 /* 标签页 */
-.tabs {
+.admin-tabs {
   display: flex;
-  gap: 10px;
-  margin-bottom: 30px;
-  border-bottom: 2px solid var(--border-brown);
-  padding-bottom: 10px;
+  gap: 6px;
+  margin-bottom: 20px;
+  border-bottom: 2px solid #FFD700;
+  padding-bottom: 0;
+  flex-wrap: wrap;
 }
 
-.tab {
-  padding: 12px 24px;
-  font-size: 1rem;
-  font-family: 'Noto Serif SC', serif;
+.admin-tab {
   background: transparent;
-  border: 2px solid var(--border-brown);
+  color: #aaa;
+  border: 2px solid transparent;
   border-bottom: none;
-  border-radius: 8px 8px 0 0;
-  color: var(--parchment);
-  cursor: pointer;
-  transition: all 0.3s;
+  padding: 10px 20px;
+  font-size: 0.95rem;
+  border-radius: 6px 6px 0 0;
+  font-weight: 600;
 }
 
-.tab:hover {
-  background: rgba(139, 69, 19, 0.3);
+.admin-tab.active {
+  background: #FFD700;
+  color: #0a0a0a;
+  border-color: #FFD700;
 }
 
-.tab.active {
-  background: var(--parchment);
-  color: var(--ink);
+.admin-tab:hover:not(.active) {
+  color: #FFD700;
 }
 
 /* 面板 */
-.panel {
-  background: var(--parchment);
-  border-radius: 8px;
-  padding: 30px;
-  border: 3px solid var(--border-brown);
+.admin-panel {
+  background: #1a1a1a;
+  border: 1px solid #333;
+  border-radius: 4px;
+  padding: 24px;
 }
 
 /* 表单 */
-.form {
-  max-width: 600px;
-  margin: 0 auto 40px auto;
-  padding-bottom: 30px;
-  border-bottom: 2px dashed var(--border-brown);
+.admin-form {
+  border-bottom: 2px dashed #444;
+  padding-bottom: 24px;
+  margin-bottom: 24px;
 }
 
-.form h3 {
-  font-family: 'Ma Shan Zheng', cursive;
-  font-size: 1.8rem;
-  color: var(--ink);
-  text-align: center;
-  margin: 0 0 20px 0;
+.admin-form h3 {
+  color: #FFD700;
+  font-size: 1.1rem;
+  margin: 0 0 16px;
 }
 
-.form-group {
-  margin-bottom: 20px;
-}
-
-.form-group label {
+.admin-form label {
   display: block;
-  margin-bottom: 8px;
-  color: var(--ink);
-  font-weight: bold;
+  color: #ccc;
+  font-size: 0.85rem;
+  margin-bottom: 12px;
 }
 
-.form-group input,
-.form-group select,
-.form-group textarea {
+.admin-form input,
+.admin-form select,
+.admin-form textarea {
+  display: block;
   width: 100%;
-  padding: 12px;
-  font-size: 1rem;
-  font-family: 'Noto Serif SC', serif;
-  border: 2px solid var(--border-brown);
+  background: #0a0a0a;
+  color: #f5f5f5;
+  border: 1px solid #444;
+  padding: 8px 12px;
   border-radius: 4px;
-  background: white;
-  color: var(--ink);
+  font-size: 0.9rem;
+  margin-top: 4px;
+  box-sizing: border-box;
+  font-family: inherit;
 }
 
-.form-group input::placeholder {
-  color: #999;
-}
-
-.form-group input:focus,
-.form-group select:focus,
-.form-group textarea:focus {
+.admin-form input:focus,
+.admin-form select:focus,
+.admin-form textarea:focus {
   outline: none;
-  border-color: var(--gold);
-  background: white;
+  border-color: #FFD700;
 }
 
-.form-row {
+.admin-form-row {
   display: flex;
-  gap: 20px;
+  gap: 12px;
 }
 
-.form-row .form-group {
+.admin-form-row label {
   flex: 1;
 }
 
-.preview-img {
-  margin-top: 10px;
-  max-width: 100px;
-  max-height: 100px;
-  border-radius: 50%;
-  border: 2px solid var(--border-brown);
+@media (max-width: 768px) {
+  .admin-form-row { flex-direction: column; gap: 0; }
 }
 
-/* 按钮 */
-.form-actions {
+.admin-form-actions {
   display: flex;
-  gap: 15px;
-  justify-content: center;
-  margin-top: 30px;
+  gap: 8px;
+  margin-top: 16px;
 }
 
-.btn {
-  padding: 12px 30px;
-  font-size: 1rem;
-  font-family: 'Noto Serif SC', serif;
+.admin-btn-primary {
+  background: #FFD700;
+  color: #0a0a0a;
   border: none;
+  padding: 10px 24px;
+  font-weight: 700;
   border-radius: 4px;
   cursor: pointer;
-  transition: all 0.3s;
+  font-size: 0.95rem;
 }
 
-.btn-primary {
-  background: var(--seal-red);
+.admin-btn-primary:hover { background: #FFC700; }
+
+.admin-btn-secondary {
+  background: transparent;
+  color: #FFD700;
+  border: 1px solid #FFD700;
+  padding: 10px 24px;
+  font-weight: 600;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.admin-btn-danger {
+  background: #E60012;
   color: white;
+  border: none;
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  margin-left: 4px;
 }
 
-.btn-primary:hover {
-  background: #a00000;
-}
+.admin-btn-danger:hover { background: #c40010; }
 
-.btn-secondary {
-  background: var(--ink-light);
-  color: white;
-}
-
-.btn-secondary:hover {
-  background: var(--ink);
-}
-
-.btn-danger {
-  background: #dc143c;
-  color: white;
-  margin-left: 10px;
-}
-
-.btn-danger:hover {
-  background: #b01030;
+.admin-preview-img {
+  display: block;
+  margin-top: 8px;
+  max-width: 100px;
+  max-height: 100px;
+  border-radius: 4px;
+  border: 1px solid #444;
 }
 
 /* 列表 */
-.list h3 {
-  font-family: 'Ma Shan Zheng', cursive;
-  font-size: 1.5rem;
-  color: var(--ink);
-  margin: 0 0 20px 0;
+.admin-list h3 {
+  color: #FFD700;
+  font-size: 1rem;
+  margin: 0 0 12px;
 }
 
-.empty {
+.admin-empty {
   text-align: center;
-  padding: 40px;
-  color: var(--ink-light);
+  padding: 30px;
+  color: #666;
 }
 
-table {
+.admin-list table {
   width: 100%;
   border-collapse: collapse;
+  font-size: 0.85rem;
+  display: block;
+  overflow-x: auto;
 }
 
-th, td {
-  padding: 12px;
+.admin-list th,
+.admin-list td {
+  padding: 8px 10px;
   text-align: left;
-  border-bottom: 1px solid var(--border-brown);
+  border-bottom: 1px solid #333;
+  white-space: nowrap;
+  color: #f5f5f5;
 }
 
-th {
-  background: rgba(139, 69, 19, 0.1);
-  color: var(--ink);
-  font-weight: bold;
+.admin-list th {
+  background: #0a0a0a;
+  color: #FFD700;
+  font-weight: 700;
+  font-size: 0.8rem;
 }
 
-td button {
-  padding: 6px 12px;
-  font-size: 0.85rem;
-  font-family: 'Noto Serif SC', serif;
-  background: var(--ink-light);
-  color: white;
-  border: none;
+.admin-list tr:hover {
+  background: #222;
+}
+
+.admin-row-main {
+  background: rgba(255, 215, 0, 0.05);
+}
+
+.admin-row-hidden {
+  background: rgba(230, 0, 18, 0.05);
+  color: #aaa;
+}
+
+.admin-table-avatar {
+  width: 36px;
+  height: 36px;
   border-radius: 4px;
-  cursor: pointer;
-  margin-right: 5px;
-}
-
-td button:hover {
-  background: var(--ink);
-}
-
-.table-avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  border: 2px solid var(--border-brown);
   object-fit: cover;
+  border: 1px solid #444;
 }
 
-.table-avatar.placeholder {
+.admin-table-avatar.placeholder {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--parchment-dark);
-  font-family: 'Ma Shan Zheng', cursive;
-  font-size: 1.2rem;
-  color: var(--border-brown);
+  background: #0a0a0a;
+  color: #FFD700;
+  font-weight: 900;
 }
 
-/* 状态标签 */
-.status-tag {
-  padding: 4px 10px;
-  border-radius: 3px;
-  font-size: 0.85rem;
-  color: white;
-}
-
-.status-tag.寻好汉 { background: #8B4513; }
-.status-tag.已揭榜 { background: #CD853F; }
-.status-tag.来领赏 { background: #228B22; }
-.status-tag.收榜 { background: #696969; }
-
-/* 登录页面 */
-.login-page {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 100vh;
-}
-
-.login-form {
-  background: var(--parchment);
-  padding: 40px;
-  border-radius: 8px;
-  border: 3px solid var(--border-brown);
-  text-align: center;
-}
-
-.login-form h2 {
-  font-family: 'Ma Shan Zheng', cursive;
-  font-size: 2rem;
-  color: var(--ink);
-  margin: 0 0 30px 0;
-}
-
-.login-form input {
-  width: 100%;
-  padding: 15px;
-  font-size: 1rem;
-  border: 2px solid var(--border-brown);
-  border-radius: 4px;
-  margin-bottom: 20px;
-  font-family: 'Noto Serif SC', serif;
-}
-
-.login-form button {
-  padding: 12px 40px;
-  font-size: 1rem;
-  background: var(--seal-red);
+.admin-list button {
+  background: #444;
   color: white;
   border: none;
+  padding: 4px 10px;
   border-radius: 4px;
   cursor: pointer;
-  font-family: 'Noto Serif SC', serif;
+  font-size: 0.8rem;
 }
 
-.login-form button:hover {
-  background: #a00000;
-}
-
-@media (max-width: 768px) {
-  .admin {
-    padding: 12px;
-  }
-  
-  .admin-title {
-    font-size: 2rem;
-  }
-  
-  .panel {
-    padding: 16px;
-  }
-  
-  .form-row {
-    flex-direction: column;
-  }
-  
-  table {
-    font-size: 0.75rem;
-    display: block;
-    overflow-x: auto;
-  }
-  
-  th, td {
-    padding: 8px 6px;
-    white-space: nowrap;
-  }
-  
-  td button {
-    padding: 4px 8px;
-    font-size: 0.75rem;
-  }
-  
-  .btn-print {
-    padding: 4px 8px;
-    font-size: 0.75rem;
-    margin-bottom: 4px;
-  }
-  
-  .form h3 {
-    font-size: 1.4rem;
-  }
-  
-  .tabs {
-    flex-wrap: wrap;
-  }
-  
-  .tab {
-    padding: 10px 16px;
-    font-size: 0.9rem;
-  }
-}
+.admin-list button:hover { background: #555; }
