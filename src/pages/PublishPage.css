@@ -1,0 +1,236 @@
+/* 发布挑战页 - 赛车风 */
+.publish-page {
+  background:
+    linear-gradient(180deg, rgba(0,0,0,0.4), #0a0a0a 70%),
+    linear-gradient(135deg, #0098EA 0%, #1a1a1a 50%, #E60012 100%);
+  min-height: calc(100vh - 56px);
+  padding: 24px 16px;
+}
+
+.publish-card {
+  position: relative;
+  max-width: 640px;
+  margin: 0 auto;
+  background: linear-gradient(180deg, #fff5b3 0%, #ffe680 50%, #fff5b3 100%);
+  border-radius: 8px;
+  padding: 28px 24px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.publish-card-border {
+  position: absolute;
+  inset: 0;
+  border: 2px solid #1a1a1a;
+  pointer-events: none;
+  border-radius: 8px;
+}
+
+.publish-title {
+  font-size: 1.6rem;
+  font-weight: 900;
+  color: #1a1a1a;
+  margin: 0 0 4px;
+  text-align: center;
+  letter-spacing: 0.1em;
+}
+
+.publish-subtitle {
+  text-align: center;
+  color: #555;
+  font-size: 0.9rem;
+  margin: 0 0 24px;
+}
+
+.publish-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.publish-section {
+  border: 1px solid #888;
+  border-radius: 4px;
+  padding: 16px 20px 12px;
+  background: rgba(255, 255, 255, 0.4);
+  position: relative;
+}
+
+.publish-section legend {
+  background: #1a1a1a;
+  color: #FFD700;
+  font-size: 0.9rem;
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: 2px;
+  letter-spacing: 0.05em;
+}
+
+.publish-form-row {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.publish-form-row:last-child {
+  margin-bottom: 0;
+}
+
+.publish-form-row label {
+  flex: 1;
+  display: block;
+  color: #1a1a1a;
+  font-size: 0.85rem;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+
+.publish-section > label {
+  display: block;
+  color: #1a1a1a;
+  font-size: 0.85rem;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+
+.publish-section > label:last-child {
+  margin-bottom: 0;
+}
+
+.required {
+  color: #E60012;
+}
+
+.publish-form input,
+.publish-form select,
+.publish-form textarea {
+  display: block;
+  width: 100%;
+  background: white;
+  color: #1a1a1a;
+  border: 1.5px solid #888;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 0.95rem;
+  margin-top: 4px;
+  box-sizing: border-box;
+  font-family: inherit;
+}
+
+.publish-form input:focus,
+.publish-form select:focus,
+.publish-form textarea:focus {
+  outline: none;
+  border-color: #FFD700;
+  box-shadow: 0 0 0 2px rgba(255, 215, 0, 0.3);
+}
+
+.publish-form textarea {
+  resize: vertical;
+  min-height: 60px;
+}
+
+.publish-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 8px;
+}
+
+.publish-btn-primary,
+.publish-btn-secondary {
+  padding: 12px 32px;
+  font-size: 1rem;
+  font-weight: 700;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  letter-spacing: 0.05em;
+}
+
+.publish-btn-primary {
+  background: #FFD700;
+  color: #0a0a0a;
+  box-shadow: 0 4px 0 #b8980a;
+  transform: translateY(0);
+  transition: all 0.1s;
+}
+
+.publish-btn-primary:hover {
+  background: #FFC700;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 0 #b8980a;
+}
+
+.publish-btn-primary:active {
+  transform: translateY(2px);
+  box-shadow: 0 2px 0 #b8980a;
+}
+
+.publish-btn-primary:disabled {
+  background: #888;
+  color: #ccc;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+
+.publish-btn-secondary {
+  background: transparent;
+  color: #1a1a1a;
+  border: 2px solid #1a1a1a;
+}
+
+.publish-btn-secondary:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.publish-btn-secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 成功页 */
+.publish-success {
+  text-align: center;
+  padding: 80px 20px;
+  color: #f5f5f5;
+}
+
+.publish-success-icon {
+  font-size: 4rem;
+  margin-bottom: 16px;
+  animation: bounce 0.6s ease;
+}
+
+@keyframes bounce {
+  0% { transform: scale(0); }
+  50% { transform: scale(1.2); }
+  100% { transform: scale(1); }
+}
+
+.publish-success-title {
+  font-size: 1.6rem;
+  font-weight: 900;
+  color: #FFD700;
+  margin-bottom: 8px;
+}
+
+.publish-success-text {
+  font-size: 0.9rem;
+  color: #888;
+}
+
+@media (max-width: 640px) {
+  .publish-form-row {
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .publish-card {
+    padding: 20px 16px;
+  }
+
+  .publish-title {
+    font-size: 1.3rem;
+  }
+}

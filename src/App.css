@@ -46,6 +46,8 @@ button {
   display: flex;
   align-items: center;
   gap: 12px;
+  text-decoration: none;
+  color: inherit;
 }
 
 .brand-logo {
@@ -67,6 +69,32 @@ button {
   font-size: 1.1rem;
   font-weight: 700;
   color: #f5f5f5;
+}
+
+.brand-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.brand-action {
+  background: #FFD700;
+  color: #0a0a0a;
+  font-weight: 700;
+  padding: 8px 16px;
+  border-radius: 4px;
+  text-decoration: none;
+  font-size: 0.9rem;
+  letter-spacing: 0.05em;
+}
+
+.brand-action:hover {
+  background: #FFC700;
+}
+
+.brand-action.active {
+  background: #FFC700;
+  box-shadow: 0 0 8px rgba(255, 215, 0, 0.4);
 }
 
 .brand-season {
@@ -91,81 +119,13 @@ button {
   box-shadow: 0 0 6px #FFD700;
 }
 
-/* 底部导航 */
-.app-nav {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  z-index: 50;
-  display: flex;
-  background: #0a0a0a;
-  border-top: 1px solid #333;
-  padding: 8px 0;
-}
-
-.nav-item {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  padding: 8px;
-  color: #888;
-  text-decoration: none;
-  font-size: 0.75rem;
-  transition: color 0.2s;
-}
-
-.nav-item.active {
-  color: #FFD700;
-  background: rgba(255, 215, 0, 0.05);
-}
-
-.nav-icon {
-  font-size: 1.4rem;
-}
-
-.nav-label {
-  font-weight: 500;
+@media (max-width: 640px) {
+  .brand-season {
+    display: none;
+  }
 }
 
 /* 内容容器 */
 .app-content {
-  padding-bottom: 80px; /* 留出底部 nav 空间 */
-}
-
-/* 通用按钮 */
-.btn-primary {
-  background: #FFD700;
-  color: #0a0a0a;
-  border: none;
-  padding: 8px 18px;
-  font-weight: 700;
-  border-radius: 4px;
-  font-size: 0.9rem;
-  transition: all 0.2s;
-}
-
-.btn-primary:hover {
-  background: #FFC700;
-  transform: translateY(-1px);
-}
-
-.btn-secondary {
-  background: transparent;
-  color: #FFD700;
-  border: 1px solid #FFD700;
-  padding: 8px 18px;
-  font-weight: 600;
-  border-radius: 4px;
-}
-
-.btn-danger {
-  background: #e53e3e;
-  color: white;
-  border: none;
-  padding: 6px 12px;
-  border-radius: 4px;
-  font-size: 0.8rem;
+  min-height: calc(100vh - 56px);
 }
