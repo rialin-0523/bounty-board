@@ -1,57 +1,81 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import Layout from '../components/Layout'
-import { listStreamers, listMainChallengesWithHidden } from '../lib/api'
+import {
+  listMainChallengesWithHidden,
+  aggregateFollowOrders,
+  updateChallenge,
+  GIFT_ICONS,
+} from '../lib/api'
 import './HomePage.css'
 
-const ALL = '全部'
-
 export default function HomePage() {
-  const [streamers, setStreamers] = useState([])
+  const navigate = useNavigate()
   const [challenges, setChallenges] = useState([])
+  const [followMap, setFollowMap] = useState({})
   const [loading, setLoading] = useState(true)
-  const [gameFilter, setGameFilter] = useState(ALL)
-  const [sortBy, setSortBy] = useState('default')
+  const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState('全部')
+  const [giftFilter, setGiftFilter] = useState('全部')
+  const [busy, setBusy] = useState(null)
 
   useEffect(() => {
-    fetchData()
+    fetchAll()
   }, [])
 
-  async function fetchData() {
+  async function fetchAll() {
     setLoading(true)
     try {
-      const [ss, cs] = await Promise.all([
-        listStreamers(),
-        listMainChallengesWithHidden(),
-      ])
-      setStreamers(ss)
+      const cs = await listMainChallengesWithHidden()
       setChallenges(cs)
+      const fm = {}
+      await Promise.all(cs.map(async c => {
+        fm[c.id] = await aggregateFollowOrders(c.id)
+        if (c.hidden_challenges) {
+          for (const h of c.hidden_challenges) {
+            fm[h.id] = await aggregateFollowOrders(h.id)
+          }
+        }
+      }))
+      setFollowMap(fm)
     } catch (e) {
       console.error(e)
-      alert('加载失败：' + e.message)
     } finally {
       setLoading(false)
     }
   }
 
-  // 主播收到的主挑战数
-  function challengeCountFor(streamerId) {
-    return challenges.filter(c => c.streamer_id === streamerId).length
+  function getTotal(c) {
+    const fm = followMap[c.id]
+    if (!fm) return c.gift_quantity
+    return c.gift_quantity + (fm.acc[c.gift_type] || 0)
   }
 
-  // 过滤+排序
-  let displayList = streamers
-  if (gameFilter !== ALL) displayList = displayList.filter(s => s.game_tag === gameFilter)
-
-  if (sortBy === 'rush_coin') {
-    displayList = [...displayList].sort((a, b) => (b.rush_coin || 0) - (a.rush_coin || 0))
-  } else if (sortBy === 'rush_value') {
-    displayList = [...displayList].sort((a, b) => (b.rush_value || 0) - (a.rush_value || 0))
-  } else if (sortBy === 'live') {
-    displayList = [...displayList].sort((a, b) => (b.is_live ? 1 : 0) - (a.is_live ? 1 : 0))
+  async function handleComplete(c, e) {
+    e.preventDefault()
+    e.stopPropagation()
+    if (busy) return
+    if (!confirm(`确认任务「${c.title}」已完成吗？`)) return
+    setBusy(c.id)
+    try {
+      await updateChallenge(c.id, { status: 'completed' })
+      await fetchAll()
+    } catch (err) {
+      alert('操作失败：' + err.message)
+    } finally {
+      setBusy(null)
+    }
   }
 
-  const gameOptions = [ALL, ...Array.from(new Set(streamers.map(s => s.game_tag).filter(Boolean)))]
+  const display = challenges.filter(c => {
+    if (statusFilter !== '全部' && c.status !== statusFilter) return false
+    if (giftFilter !== '全部' && c.gift_type !== giftFilter) return false
+    if (search) {
+      const hay = `${c.title} ${c.boss_id || ''} ${c.description || ''} ${c.condition_desc || ''}`
+      if (!hay.toLowerCase().includes(search.toLowerCase())) return false
+    }
+    return true
+  })
 
   return (
     <Layout>
@@ -60,75 +84,91 @@ export default function HomePage() {
       </div>
 
       <div className="home-toolbar">
-        <div className="home-filter-tabs">
-          {gameOptions.map(tag => (
-            <button
-              key={tag}
-              className={`home-tab ${gameFilter === tag ? 'active' : ''}`}
-              onClick={() => setGameFilter(tag)}
-            >
-              {tag}
-            </button>
-          ))}
-        </div>
-        <div className="home-sort">
-          <select value={sortBy} onChange={e => setSortBy(e.target.value)}>
-            <option value="default">默认排序</option>
-            <option value="live">直播中优先</option>
-            <option value="rush_coin">Rush币</option>
-            <option value="rush_value">Rush值</option>
-          </select>
-        </div>
+        <input
+          className="home-search"
+          type="text"
+          placeholder="搜索任务 / 老板ID..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+        />
+        <select className="home-select" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+          <option value="全部">全部状态</option>
+          <option value="active">进行中</option>
+          <option value="completed">已完成</option>
+          <option value="cancelled">已取消</option>
+        </select>
+        <select className="home-select" value={giftFilter} onChange={e => setGiftFilter(e.target.value)}>
+          <option value="全部">全部礼物</option>
+          <option value="飞机">✈️ 飞机</option>
+          <option value="火箭">🚀 火箭</option>
+          <option value="币">🪙 币</option>
+        </select>
       </div>
 
-      <div className="home-section-title">全部主播</div>
+      {loading ? (
+        <div className="home-loading">加载中...</div>
+      ) : display.length === 0 ? (
+        <div className="home-empty">
+          <div className="home-empty-icon">⚔️</div>
+          <div className="home-empty-text">{challenges.length === 0 ? '暂无任务' : '没有匹配的任务'}</div>
+          {challenges.length === 0 && (
+            <Link to="/publish" className="home-empty-cta">+ 发布第一个挑战</Link>
+          )}
+        </div>
+      ) : (
+        <div className="cb-list">
+          {display.map(c => (
+            <Link key={c.id} to={`/challenges/${c.id}`} className={`cb-card ${c.status === 'completed' ? 'is-completed' : ''}`}>
+              <div className="cb-card-inner">
+                <div className="cb-card-border"></div>
+                <div className="cb-card-head">
+                  <div className="cb-boss-info">
+                    <div className="cb-boss-avatar">{c.boss_id?.charAt(0) || '?'}</div>
+                    <div>
+                      <div className="cb-boss-name">{c.boss_id}</div>
+                      <div className="cb-boss-label">老板</div>
+                    </div>
+                  </div>
+                  <span className={`cb-status cb-status-${c.status}`}>
+                    {c.status === 'active' ? '进行中' : c.status === 'completed' ? '已完成' : '已取消'}
+                  </span>
+                </div>
 
-      <div className="streamers-grid">
-        {loading ? (
-          <div className="home-loading">加载中...</div>
-        ) : displayList.length === 0 ? (
-          <div className="home-empty">暂无主播</div>
-        ) : (
-          displayList.map(s => (
-            <Link key={s.id} to="/challenges" className="streamer-card">
-              <div className="streamer-card-inner">
-                <div className="streamer-card-border"></div>
-                <div className="streamer-card-head">
-                  <span className="streamer-game-tag">{s.game_tag || '其他'}</span>
-                  <span className="streamer-level">{s.level || 'LV0'}</span>
+                <div className="cb-title">{c.title}</div>
+                {c.condition_desc && <div className="cb-condition">条件：{c.condition_desc}</div>}
+                {c.description && <div className="cb-desc">{c.description}</div>}
+
+                <div className="cb-gift-row">
+                  <div className="cb-gift-badge">
+                    <span className="cb-gift-icon">{GIFT_ICONS[c.gift_type]}</span>
+                    <span className="cb-gift-type">{c.gift_type}</span>
+                    <span className="cb-gift-qty">x {getTotal(c)}</span>
+                  </div>
+                  {(followMap[c.id]?.acc[c.gift_type] || 0) > 0 && (
+                    <div className="cb-follow-info">含 {followMap[c.id].acc[c.gift_type]} 跟单</div>
+                  )}
                 </div>
-                <div className="streamer-avatar-wrap">
-                  <div className="streamer-avatar placeholder">
-                    {s.nickname?.charAt(0) || '?'}
+
+                {c.hidden_challenges && c.hidden_challenges.length > 0 && (
+                  <div className="cb-hidden-badge">
+                    🎁 包含 {c.hidden_challenges.length} 个隐藏任务
                   </div>
-                  {s.is_live && <span className="streamer-live-badge">直播中</span>}
-                </div>
-                <div className="streamer-name">{s.nickname}</div>
-                <div className="streamer-room">直播间 {s.room_id || '-'}</div>
-                <div className="streamer-stats">
-                  <div className="streamer-stat">
-                    <div className="stat-num">{s.rush_coin || 0}</div>
-                    <div className="stat-label">Rush币</div>
-                  </div>
-                  <div className="streamer-stat">
-                    <div className="stat-num">{formatNum(s.rush_value || 0)}</div>
-                    <div className="stat-label">Rush值</div>
-                  </div>
-                </div>
-                {challengeCountFor(s.id) > 0 && (
-                  <div className="streamer-challenge-count">
-                    {challengeCountFor(s.id)} 个挑战
-                  </div>
+                )}
+
+                {c.status === 'active' && (
+                  <button
+                    className="cb-complete-btn"
+                    onClick={(e) => handleComplete(c, e)}
+                    disabled={busy === c.id}
+                  >
+                    {busy === c.id ? '处理中...' : '✓ 标记完成'}
+                  </button>
                 )}
               </div>
             </Link>
-          ))
-        )}
-      </div>
+          ))}
+        </div>
+      )}
     </Layout>
   )
-}
-
-function formatNum(n) {
-  return n.toLocaleString('en-US')
 }

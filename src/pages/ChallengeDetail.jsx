@@ -3,10 +3,10 @@ import { useParams, useNavigate } from 'react-router-dom'
 import Layout from '../components/Layout'
 import {
   getChallenge,
-  listStreamers,
+  listChallenges,
   aggregateFollowOrders,
   createFollowOrder,
-  getOrCreateBoss,
+  updateChallenge,
   GIFT_ICONS,
   GIFT_TYPES,
 } from '../lib/api'
@@ -16,15 +16,15 @@ export default function ChallengeDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
   const [challenge, setChallenge] = useState(null)
-  const [streamer, setStreamer] = useState(null)
   const [hiddenList, setHiddenList] = useState([])
   const [followMain, setFollowMain] = useState({ orders: [], acc: {} })
   const [followHidden, setFollowHidden] = useState({})
   const [loading, setLoading] = useState(true)
   const [showFollowForm, setShowFollowForm] = useState(false)
-  const [followTarget, setFollowTarget] = useState(null) // 主挑战或某个隐藏任务
-  const [followForm, setFollowForm] = useState({ douyu_id: '', gift_type: '飞机', gift_quantity: 1 })
+  const [followTarget, setFollowTarget] = useState(null)
+  const [followForm, setFollowForm] = useState({ boss_id: '', gift_type: '飞机', gift_quantity: 1 })
   const [submitting, setSubmitting] = useState(false)
+  const [completing, setCompleting] = useState(false)
 
   useEffect(() => {
     fetchAll()
@@ -35,25 +35,17 @@ export default function ChallengeDetail() {
     try {
       const c = await getChallenge(id)
       setChallenge(c)
-      // 主播
-      let s = null
-      if (c.streamer_id) {
-        const ss = await listStreamers()
-        s = ss.find(x => x.id === c.streamer_id) || null
-        setStreamer(s)
-      }
-      // 隐藏任务（仅当当前是主任务时）
+
       let hiddens = []
       if (c.parent_challenge_id == null) {
-        const { listChallenges } = await import('../lib/api')
         const all = await listChallenges()
         hiddens = all.filter(h => h.parent_challenge_id === c.id)
         setHiddenList(hiddens)
       }
-      // 跟单
+
       const fm = await aggregateFollowOrders(c.id)
       setFollowMain(fm)
-      // 隐藏任务各自跟单
+
       const fh = {}
       await Promise.all(
         hiddens.map(async h => {
@@ -70,7 +62,6 @@ export default function ChallengeDetail() {
   }
 
   function getTotal(c) {
-    // 累计: 基础 + 同类型跟单
     if (c.id === challenge?.id) {
       return c.gift_quantity + (followMain.acc[c.gift_type] || 0)
     } else {
@@ -82,25 +73,24 @@ export default function ChallengeDetail() {
   function openFollowForm(c) {
     setFollowTarget(c)
     setShowFollowForm(true)
-    setFollowForm({ douyu_id: '', gift_type: c.gift_type, gift_quantity: 1 })
+    setFollowForm({ boss_id: '', gift_type: c.gift_type, gift_quantity: 1 })
   }
 
   async function submitFollow(e) {
     e.preventDefault()
-    if (!followForm.douyu_id.trim()) {
-      alert('请输入斗鱼ID')
+    if (!followForm.boss_id.trim()) {
+      alert('请输入老板ID')
       return
     }
-    if (followForm.gift_quantity <= 0) {
+    if (parseInt(followForm.gift_quantity) <= 0) {
       alert('数量必须为正整数')
       return
     }
     setSubmitting(true)
     try {
-      const boss = await getOrCreateBoss(followForm.douyu_id.trim())
       await createFollowOrder({
         challenge_id: followTarget.id,
-        boss_id: boss.id,
+        boss_id: followForm.boss_id.trim(),
         gift_type: followForm.gift_type,
         gift_quantity: parseInt(followForm.gift_quantity),
       })
@@ -115,17 +105,27 @@ export default function ChallengeDetail() {
     }
   }
 
+  async function handleComplete() {
+    if (!confirm(`确认任务「${challenge.title}」已完成吗？`)) return
+    setCompleting(true)
+    try {
+      await updateChallenge(challenge.id, { status: 'completed' })
+      await fetchAll()
+    } catch (err) {
+      alert('操作失败：' + err.message)
+    } finally {
+      setCompleting(false)
+    }
+  }
+
   if (loading) {
     return <Layout><div className="cd-loading">加载中...</div></Layout>
   }
   if (!challenge) {
-    return <Layout><div className="cd-loading">挑战不存在</div></Layout>
+    return <Layout><div className="cd-loading">任务不存在</div></Layout>
   }
 
-  // 隐藏任务列表
   const hiddens = challenge.parent_challenge_id == null ? hiddenList : []
-  // 跟单老板列表
-  const followBosses = followMain.orders.map(o => o.boss_id)
 
   return (
     <Layout>
@@ -134,17 +134,17 @@ export default function ChallengeDetail() {
 
         <div className="cd-main-card">
           <div className="cd-main-card-border"></div>
-          <div className="cd-status-tag">主任务</div>
+          <div className="cd-status-tag">
+            {challenge.status === 'active' ? '主任务 · 进行中' : challenge.status === 'completed' ? '已完成' : '已取消'}
+          </div>
 
-          {streamer && (
-            <div className="cd-streamer-row">
-              <div className="cd-streamer-avatar placeholder">{streamer.nickname?.charAt(0)}</div>
-              <div>
-                <div className="cd-streamer-name">{streamer.nickname}</div>
-                <div className="cd-streamer-meta">{streamer.game_tag} · {streamer.level} · 直播间 {streamer.room_id}</div>
-              </div>
+          <div className="cd-boss-row">
+            <div className="cd-boss-avatar">{challenge.boss_id?.charAt(0) || '?'}</div>
+            <div>
+              <div className="cd-boss-name">{challenge.boss_id}</div>
+              <div className="cd-boss-label">发布老板</div>
             </div>
-          )}
+          </div>
 
           <h1 className="cd-title">{challenge.title}</h1>
           {challenge.condition_desc && (
@@ -155,7 +155,7 @@ export default function ChallengeDetail() {
           )}
 
           <div className="cd-gift-box">
-            <div className="cd-gift-label">主奖励</div>
+            <div className="cd-gift-label">奖励</div>
             <div className="cd-gift-display">
               <span className="cd-gift-icon-big">{GIFT_ICONS[challenge.gift_type]}</span>
               <span className="cd-gift-name">{challenge.gift_type}</span>
@@ -171,20 +171,31 @@ export default function ChallengeDetail() {
 
           {followMain.orders.length > 0 && (
             <div className="cd-follow-list">
-              <div className="cd-section-label">跟单 ({followMain.orders.length})</div>
+              <div className="cd-section-label">跟单记录 ({followMain.orders.length})</div>
               <div className="cd-follow-items">
                 {followMain.orders.map(o => (
                   <span key={o.id} className="cd-follow-chip">
-                    {GIFT_ICONS[o.gift_type]} {o.gift_quantity}
+                    {o.boss_id}: {GIFT_ICONS[o.gift_type]} {o.gift_quantity}
                   </span>
                 ))}
               </div>
             </div>
           )}
 
-          <button className="cd-follow-btn" onClick={() => openFollowForm(challenge)}>
-            + 跟单
-          </button>
+          <div className="cd-actions">
+            <button className="cd-follow-btn" onClick={() => openFollowForm(challenge)}>
+              + 跟单
+            </button>
+            {challenge.status === 'active' && (
+              <button
+                className="cd-complete-btn"
+                onClick={handleComplete}
+                disabled={completing}
+              >
+                {completing ? '处理中...' : '✓ 标记完成'}
+              </button>
+            )}
+          </div>
         </div>
 
         {hiddens.length > 0 && (
@@ -196,6 +207,13 @@ export default function ChallengeDetail() {
                 <div key={h.id} className="cd-hidden-card">
                   <div className="cd-hidden-card-border"></div>
                   <div className="cd-hidden-status">隐藏任务</div>
+                  <div className="cd-boss-row small">
+                    <div className="cd-boss-avatar small">{h.boss_id?.charAt(0) || '?'}</div>
+                    <div>
+                      <div className="cd-boss-name">{h.boss_id}</div>
+                      <div className="cd-boss-label">老板</div>
+                    </div>
+                  </div>
                   <h3 className="cd-hidden-title">{h.title}</h3>
                   {h.condition_desc && <div className="cd-hidden-condition">条件：{h.condition_desc}</div>}
                   {h.description && <p className="cd-hidden-desc">{h.description}</p>}
@@ -224,13 +242,13 @@ export default function ChallengeDetail() {
               <div className="cd-modal-title">跟单：{followTarget.title}</div>
               <form onSubmit={submitFollow} className="cd-form">
                 <label className="cd-form-label">
-                  老板斗鱼ID
+                  老板ID / 昵称
                   <input
                     className="cd-form-input"
                     type="text"
-                    value={followForm.douyu_id}
-                    onChange={e => setFollowForm({ ...followForm, douyu_id: e.target.value })}
-                    placeholder="请输入斗鱼ID"
+                    value={followForm.boss_id}
+                    onChange={e => setFollowForm({ ...followForm, boss_id: e.target.value })}
+                    placeholder="老板ID"
                     required
                   />
                 </label>

@@ -13,6 +13,7 @@
   border-radius: 4px;
   font-size: 0.85rem;
   margin-bottom: 12px;
+  cursor: pointer;
 }
 
 .cd-loading, .cd-empty {
@@ -48,39 +49,48 @@
   margin-bottom: 10px;
 }
 
-.cd-streamer-row {
+.cd-boss-row {
   display: flex;
   gap: 12px;
   align-items: center;
   margin-bottom: 12px;
 }
 
-.cd-streamer-avatar {
-  width: 50px;
-  height: 50px;
-  border-radius: 4px;
-  border: 2px solid #1a1a1a;
+.cd-boss-row.small {
+  margin: 8px 0;
 }
 
-.cd-streamer-avatar.placeholder {
+.cd-boss-avatar {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background: #1a1a1a;
+  color: #FFD700;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #1a1a1a;
-  color: #FFD700;
+  font-size: 1.4rem;
   font-weight: 900;
-  font-size: 1.2rem;
+  border: 2px solid #FFD700;
+  box-shadow: 0 0 0 2px #1a1a1a;
 }
 
-.cd-streamer-name {
+.cd-boss-avatar.small {
+  width: 40px;
+  height: 40px;
+  font-size: 1.1rem;
+}
+
+.cd-boss-name {
   font-weight: 700;
   color: #1a1a1a;
   font-size: 1.05rem;
 }
 
-.cd-streamer-meta {
-  font-size: 0.75rem;
+.cd-boss-label {
+  font-size: 0.7rem;
   color: #555;
+  letter-spacing: 0.1em;
 }
 
 .cd-title {
@@ -169,25 +179,50 @@
   font-weight: 700;
 }
 
-.cd-follow-btn {
-  width: 100%;
-  background: #FFD700;
-  color: #0a0a0a;
+.cd-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.cd-follow-btn,
+.cd-complete-btn {
+  flex: 1;
   border: none;
   padding: 12px;
   font-size: 1rem;
   font-weight: 900;
   border-radius: 4px;
   letter-spacing: 0.1em;
+  cursor: pointer;
 }
+
+.cd-follow-btn {
+  background: #FFD700;
+  color: #0a0a0a;
+}
+
+.cd-follow-btn:hover { background: #FFC700; }
 
 .cd-follow-btn.small {
   padding: 8px;
   font-size: 0.9rem;
   margin-top: 8px;
+  width: 100%;
+  flex: none;
 }
 
-.cd-follow-btn:hover { background: #FFC700; }
+.cd-complete-btn {
+  background: #00C853;
+  color: white;
+}
+
+.cd-complete-btn:hover { background: #00B048; }
+
+.cd-complete-btn:disabled {
+  background: #888;
+  cursor: not-allowed;
+}
 
 .cd-hidden-section {
   margin-top: 20px;
@@ -292,6 +327,7 @@
   border-radius: 4px;
   font-size: 0.95rem;
   margin-top: 4px;
+  box-sizing: border-box;
 }
 
 .cd-form-actions {
@@ -307,6 +343,7 @@
   border-radius: 4px;
   font-weight: 700;
   font-size: 0.9rem;
+  cursor: pointer;
 }
 
 .cd-btn-primary {

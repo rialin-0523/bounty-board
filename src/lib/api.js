@@ -1,85 +1,18 @@
 import { supabase } from './supabase'
 
 // =========================================================
-// 主播（Streamers）
-// =========================================================
-export async function listStreamers({ gameTag = null, isLive = null } = {}) {
-  let q = supabase.from('streamers').select('*').order('rush_value', { ascending: false })
-  if (gameTag) q = q.eq('game_tag', gameTag)
-  if (isLive !== null) q = q.eq('is_live', isLive)
-  const { data, error } = await q
-  if (error) throw error
-  return data || []
-}
-
-export async function getStreamer(id) {
-  const { data, error } = await supabase.from('streamers').select('*').eq('id', id).single()
-  if (error) throw error
-  return data
-}
-
-export async function createStreamer(payload) {
-  const { data, error } = await supabase.from('streamers').insert(payload).select().single()
-  if (error) throw error
-  return data
-}
-
-export async function updateStreamer(id, payload) {
-  const { data, error } = await supabase.from('streamers').update(payload).eq('id', id).select().single()
-  if (error) throw error
-  return data
-}
-
-export async function deleteStreamer(id) {
-  const { error } = await supabase.from('streamers').delete().eq('id', id)
-  if (error) throw error
-}
-
-// =========================================================
-// 老板（Bosses）- 通过斗鱼ID 唯一识别
-// =========================================================
-export async function getOrCreateBoss(douyuId, nickname = null) {
-  if (!douyuId) return null
-  const { data: existing } = await supabase.from('bosses').select('*').eq('douyu_id', douyuId).maybeSingle()
-  if (existing) return existing
-  const { data, error } = await supabase
-    .from('bosses')
-    .insert({ douyu_id: douyuId, nickname })
-    .select()
-    .single()
-  if (error) throw error
-  return data
-}
-
-export async function listBosses() {
-  const { data, error } = await supabase.from('bosses').select('*').order('created_at', { ascending: false })
-  if (error) throw error
-  return data || []
-}
-
-// =========================================================
 // 挑战（Challenges）
 // =========================================================
-export async function listChallenges({ streamerId = null, includeHidden = true } = {}) {
-  let q = supabase
-    .from('challenges')
-    .select('*')
-    .order('created_at', { ascending: false })
-  if (streamerId) q = q.eq('streamer_id', streamerId)
+export async function listChallenges({ includeHidden = true } = {}) {
+  let q = supabase.from('challenges').select('*')
   if (!includeHidden) q = q.eq('is_hidden', false)
-  const { data, error } = await q
+  const { data, error } = await q.order('created_at', { ascending: false })
   if (error) throw error
   return data || []
 }
 
-export async function getChallenge(id) {
-  const { data, error } = await supabase.from('challenges').select('*').eq('id', id).single()
-  if (error) throw error
-  return data
-}
-
+// 拉所有主任务 + 它们的隐藏子任务，按 active 优先、completed 靠后排
 export async function listMainChallengesWithHidden() {
-  // 拉所有主挑战 + 它们各自的隐藏子任务
   const { data: mains, error: e1 } = await supabase
     .from('challenges')
     .select('*')
@@ -87,6 +20,7 @@ export async function listMainChallengesWithHidden() {
     .order('created_at', { ascending: false })
   if (e1) throw e1
   if (!mains || mains.length === 0) return []
+
   const ids = mains.map(c => c.id)
   const { data: hiddens, error: e2 } = await supabase
     .from('challenges')
@@ -94,10 +28,26 @@ export async function listMainChallengesWithHidden() {
     .in('parent_challenge_id', ids)
     .order('created_at', { ascending: true })
   if (e2) throw e2
-  return mains.map(m => ({
+
+  const combined = mains.map(m => ({
     ...m,
     hidden_challenges: (hiddens || []).filter(h => h.parent_challenge_id === m.id),
   }))
+
+  // 排序：active 优先，然后按 created_at desc；completed/cancelled 排最后
+  return combined.sort((a, b) => {
+    const order = { active: 0, completed: 1, cancelled: 2 }
+    const oa = order[a.status] ?? 9
+    const ob = order[b.status] ?? 9
+    if (oa !== ob) return oa - ob
+    return new Date(b.created_at) - new Date(a.created_at)
+  })
+}
+
+export async function getChallenge(id) {
+  const { data, error } = await supabase.from('challenges').select('*').eq('id', id).single()
+  if (error) throw error
+  return data
 }
 
 export async function createChallenge(payload) {
@@ -131,7 +81,6 @@ export async function listFollowOrders(challengeId) {
 }
 
 export async function aggregateFollowOrders(challengeId) {
-  // 返回 { 飞机: 累计, 火箭: 累计, 币: 累计 }
   const orders = await listFollowOrders(challengeId)
   const acc = { 飞机: 0, 火箭: 0, 币: 0 }
   orders.forEach(o => {
@@ -152,7 +101,7 @@ export async function deleteFollowOrder(id) {
 }
 
 // =========================================================
-// 礼物相关常量
+// 礼物常量
 // =========================================================
 export const GIFT_TYPES = ['飞机', '火箭', '币']
 export const GIFT_ICONS = {
@@ -160,4 +109,3 @@ export const GIFT_ICONS = {
   火箭: '🚀',
   币: '🪙',
 }
-export const GAME_TAGS = ['CS2', '户外', '主机其他游戏', '主机游戏', '英雄联盟', '王者荣耀', '和平精英', '其他']
