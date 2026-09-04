@@ -101,8 +101,23 @@ CREATE INDEX IF NOT EXISTS idx_challenges_parent ON challenges(parent_challenge_
 CREATE INDEX IF NOT EXISTS idx_challenges_status ON challenges(status);
 CREATE INDEX IF NOT EXISTS idx_challenges_boss_id ON challenges(boss_id);
 
--- 老表兼容：补加 created_by 列（如果已存在表但没这列）
-ALTER TABLE challenges ADD COLUMN IF NOT EXISTS created_by UUID REFERENCES users(id) ON DELETE SET NULL;
+-- 老表兼容：补加 created_by 列（不带 FK 先加上，再用 DO 块加 FK）
+DO $$
+BEGIN
+  -- 第一次加列（如果不存在）
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'challenges' AND column_name = 'created_by'
+  ) THEN
+    ALTER TABLE challenges ADD COLUMN created_by UUID;
+  END IF;
+  -- 如果 users 表存在，加 FK
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'users') THEN
+    ALTER TABLE challenges DROP CONSTRAINT IF EXISTS challenges_created_by_fkey;
+    ALTER TABLE challenges ADD CONSTRAINT challenges_created_by_fkey
+      FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL;
+  END IF;
+END $$;
 CREATE INDEX IF NOT EXISTS idx_challenges_created_by ON challenges(created_by);
 
 -- ============================================================
@@ -114,14 +129,26 @@ CREATE TABLE IF NOT EXISTS follow_orders (
   boss_id TEXT NOT NULL,
   gift_type TEXT NOT NULL CHECK (gift_type IN ('飞机', '火箭', '币')),
   gift_quantity INTEGER NOT NULL CHECK (gift_quantity > 0),
-  created_by UUID REFERENCES users(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_follow_orders_challenge ON follow_orders(challenge_id);
 
--- 老表兼容：补加 created_by 列
-ALTER TABLE follow_orders ADD COLUMN IF NOT EXISTS created_by UUID REFERENCES users(id) ON DELETE SET NULL;
+-- 老表兼容：补加 created_by
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'follow_orders' AND column_name = 'created_by'
+  ) THEN
+    ALTER TABLE follow_orders ADD COLUMN created_by UUID;
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'users') THEN
+    ALTER TABLE follow_orders DROP CONSTRAINT IF EXISTS follow_orders_created_by_fkey;
+    ALTER TABLE follow_orders ADD CONSTRAINT follow_orders_created_by_fkey
+      FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL;
+  END IF;
+END $$;
 CREATE INDEX IF NOT EXISTS idx_follow_orders_created_by ON follow_orders(created_by);
 
 -- ============================================================
