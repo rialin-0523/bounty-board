@@ -62,6 +62,17 @@ flowchart TD
 - `server/douyu.mjs`：斗鱼弹幕协议解析、头像地址规范化、资料字段提取。
 - `server/store.mjs`：Supabase 写库、用户注册、登录会话。
 
+## 与主分支新用户系统的兼容关系
+
+主分支最新代码已经引入了另一套用户/权限库：`users`、`settings`、`created_by`、黑名单、最低斗鱼等级配置。
+
+这个项目后续合并时要并行保留两套库，不要互相覆盖：
+
+- `users` / `settings`：主分支已有的任务权限与黑名单体系。
+- `app_users` / `auth_sessions` / `bind_sessions` / `douyu_profiles`：本次新增的斗鱼绑定与登录体系。
+
+如果后续要做统一登录映射，可以再单独设计字段迁移，但当前阶段不要直接删掉主分支已有的 `users` / `settings`。
+
 ## 数据库说明
 
 现有任务相关表继续保留：

@@ -3,6 +3,7 @@
 -- ============================================================
 -- 使用场景：仓库/线上 Supabase 已经有 challenges、follow_orders 等任务表时，只执行本文件。
 -- 不会删除旧表，不会清空旧数据。
+-- 说明：主分支已有的 users/settings/created_by/黑名单/最低等级体系应继续保留，不要被本脚本覆盖。
 -- 执行位置：Supabase Dashboard -> SQL Editor。
 
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
