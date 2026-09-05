@@ -155,7 +155,7 @@ export async function listChallenges({ includeHidden = true } = {}) {
 
 // 拉所有主任务 + 它们的隐藏子任务，按 active 优先、completed 靠后排
 // currentUserId 传入时，hidden_challenges 字段只包含该用户可见的隐藏任务
-export async function listMainChallengesWithHidden({ currentUserId = null } = {}) {
+export async function listMainChallengesWithHidden({ currentUserId = null, showAllHidden = false } = {}) {
   const { data: mains, error: e1 } = await supabase
     .from('challenges')
     .select('*')
@@ -172,13 +172,15 @@ export async function listMainChallengesWithHidden({ currentUserId = null } = {}
     .order('created_at', { ascending: true })
   if (e2) throw e2
 
-  const visibleHiddens = (hiddens || []).filter(h => {
-    if (!currentUserId) return false
-    if (h.created_by === currentUserId) return true
-    const main = mains.find(m => m.id === h.parent_challenge_id)
-    if (main && main.created_by === currentUserId) return true
-    return false
-  })
+  const visibleHiddens = showAllHidden
+    ? (hiddens || [])
+    : (hiddens || []).filter(h => {
+        if (!currentUserId) return false
+        if (h.created_by === currentUserId) return true
+        const main = mains.find(m => m.id === h.parent_challenge_id)
+        if (main && main.created_by === currentUserId) return true
+        return false
+      })
 
   const combined = mains.map(m => ({
     ...m,

@@ -89,6 +89,16 @@ function bindSessionResponse(bind) {
   }
 }
 
+
+function requireSupabaseReady(res) {
+  if (supabaseAdmin) return true
+  json(res, 503, {
+    ok: false,
+    reason: 'SUPABASE_SECRET_KEY / SUPABASE_SERVICE_ROLE_KEY 未配置，绑定与登录暂不可用',
+  })
+  return false
+}
+
 async function refreshBindCache() {
   try {
     await refreshExpiredBindSessions().catch(() => {})
@@ -222,6 +232,7 @@ async function handleApi(req, res, url) {
   }
 
   if (url.pathname === '/api/bind/sessions' && req.method === 'POST') {
+    if (!requireSupabaseReady(res)) return
     const body = await readJson(req)
     const roomId = String(body.roomId || DOUYU_BIND_ROOM_ID).trim()
     const expiresAt = new Date(Date.now() + BIND_TTL_MS).toISOString()
@@ -232,6 +243,7 @@ async function handleApi(req, res, url) {
 
   const bindMatch = url.pathname.match(/^\/api\/bind\/sessions\/([^/]+)$/)
   if (bindMatch && req.method === 'GET') {
+    if (!requireSupabaseReady(res)) return
     const bind = await getBindSession(bindMatch[1])
     if (bind?.status === 'pending' || bind?.status === 'matched') await ensureListenerActive()
     return json(res, 200, bindSessionResponse(bind))
@@ -239,6 +251,7 @@ async function handleApi(req, res, url) {
 
   const bindCompleteMatch = url.pathname.match(/^\/api\/bind\/sessions\/([^/]+)\/complete$/)
   if (bindCompleteMatch && req.method === 'POST') {
+    if (!requireSupabaseReady(res)) return
     const body = await readJson(req)
     if (!isValidUsername(body.username)) return badRequest(res, '用户名只能包含中英文，长度 2-20 位')
     if (!isValidPassword(body.password)) return badRequest(res, '密码需 8-64 位，且包含字母和数字，并只使用可见字符')
@@ -253,6 +266,7 @@ async function handleApi(req, res, url) {
   }
 
   if (url.pathname === '/api/auth/login' && req.method === 'POST') {
+    if (!requireSupabaseReady(res)) return
     const body = await readJson(req)
     if (!String(body.username || '').trim() || !String(body.password || '')) return badRequest(res, '请填写用户名和密码')
     const result = await loginWithUsernamePassword({ username: body.username, password: body.password })
@@ -261,6 +275,7 @@ async function handleApi(req, res, url) {
   }
 
   if (url.pathname === '/api/auth/me' && req.method === 'GET') {
+    if (!requireSupabaseReady(res)) return
     const token = getSessionTokenFromRequest(req)
     if (!token) return json(res, 200, { ok: true, user: null })
     const result = await getUserBySessionToken(token)
@@ -268,6 +283,7 @@ async function handleApi(req, res, url) {
   }
 
   if (url.pathname === '/api/auth/logout' && req.method === 'POST') {
+    if (!requireSupabaseReady(res)) return
     const token = getSessionTokenFromRequest(req)
     if (token) await revokeSessionToken(token)
     res.setHeader('Set-Cookie', clearCookieHeader({ secure: COOKIE_SECURE }))

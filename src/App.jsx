@@ -17,7 +17,8 @@ function App() {
           <Route path="/challenges" element={<Navigate to="/" replace />} />
           <Route path="/challenges/:id" element={<ChallengeDetail />} />
           <Route path="/publish" element={<PublishPage />} />
-          <Route path="/admin" element={<Admin />} />
+          <Route path="/admin" element={<Navigate to="/xiaoyangadmin" replace />} />
+          <Route path="/xiaoyangadmin" element={<Admin />} />
           <Route path="/bind" element={<BindDouyuPage />} />
           <Route path="/login" element={<LoginPage />} />
         </Routes>

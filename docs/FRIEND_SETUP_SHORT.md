@@ -27,7 +27,7 @@ npm install
 npm run server
 ```
 
-5. 启动/部署前端：
+5. 启动/部署前端（GitHub 仓库保留源码，服务器部署构建产物）：
 
 ```bash
 npm run dev

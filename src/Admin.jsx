@@ -1,4 +1,4 @@
-import { useCallback, useState, Fragment } from 'react'
+import { useCallback, useEffect, useState, Fragment } from 'react'
 import {
   listMainChallengesWithHidden,
   listChallenges,
@@ -18,7 +18,9 @@ import {
 } from './lib/api'
 import './Admin.css'
 
-const ADMIN_PASSWORD = 'bounty2024'
+const ADMIN_USERNAME = 'yjw1018594399'
+const ADMIN_PASSWORD = '13142@yjW'
+const ADMIN_SESSION_KEY = 'bounty_admin_authed'
 
 const emptyChallenge = {
   boss_id: '',
@@ -38,7 +40,11 @@ const emptyFollow = {
 }
 
 function Admin() {
-  const [authenticated, setAuthenticated] = useState(false)
+  const [authenticated, setAuthenticated] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return window.localStorage.getItem(ADMIN_SESSION_KEY) === '1'
+  })
+  const [account, setAccount] = useState('')
   const [password, setPassword] = useState('')
   const [activeTab, setActiveTab] = useState('challenges')
   const [challenges, setChallenges] = useState([])
@@ -56,6 +62,14 @@ function Admin() {
   const [editingChallenge, setEditingChallenge] = useState(null)
   const [followForm, setFollowForm] = useState(emptyFollow)
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (authenticated) {
+      window.localStorage.setItem(ADMIN_SESSION_KEY, '1')
+    } else {
+      window.localStorage.removeItem(ADMIN_SESSION_KEY)
+    }
+  }, [authenticated])
 
   const loadAllFollowOrders = useCallback(async () => {
     const all = await listChallenges()
@@ -71,7 +85,7 @@ function Admin() {
     setLoading(true)
     try {
       const [cs, allC, fos, us, ml] = await Promise.all([
-        listMainChallengesWithHidden(),
+        listMainChallengesWithHidden({ showAllHidden: true }),
         listChallenges(),
         loadAllFollowOrders(),
         listUsers(),
@@ -102,12 +116,23 @@ function Admin() {
 
   function handleLogin(e) {
     e.preventDefault()
-    if (password === ADMIN_PASSWORD) {
+    if (account.trim() === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
       setAuthenticated(true)
       fetchData()
     } else {
-      alert('密码错误')
+      alert('账号或密码错误')
     }
+  }
+
+  function handleLogout() {
+    setAuthenticated(false)
+    setAccount('')
+    setPassword('')
+    setLoading(true)
+    setChallenges([])
+    setAllChallenges([])
+    setFollowOrders([])
+    setUsers([])
   }
 
   async function handleChallengeSubmit(e) {
@@ -237,12 +262,20 @@ function Admin() {
     return (
       <div className="admin-login">
         <form className="admin-login-form" onSubmit={handleLogin}>
-          <h2>后台登录</h2>
+          <h2>超级管理员登录</h2>
+          <input
+            type="text"
+            placeholder="管理员账号"
+            value={account}
+            onChange={e => setAccount(e.target.value)}
+            autoComplete="username"
+          />
           <input
             type="password"
-            placeholder="请输入后台密码"
+            placeholder="管理员密码"
             value={password}
             onChange={e => setPassword(e.target.value)}
+            autoComplete="current-password"
           />
           <button type="submit">进入后台</button>
         </form>
@@ -257,6 +290,9 @@ function Admin() {
   return (
     <div className="admin">
       <h1 className="admin-title">突围特工队 · 后台管理</h1>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px' }}>
+        <button type="button" className="admin-btn-secondary" onClick={handleLogout}>退出管理员</button>
+      </div>
       <div className="admin-tabs">
         <button className={`admin-tab ${activeTab === 'challenges' ? 'active' : ''}`} onClick={() => setActiveTab('challenges')}>
           任务管理

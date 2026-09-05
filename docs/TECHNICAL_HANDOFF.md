@@ -54,6 +54,8 @@ npm run server
 npm run dev
 ```
 
+生产部署默认前台地址：`https://xd.miyang.cloud/`，后台地址：`https://xd.miyang.cloud/xiaoyangadmin/`。
+
 ## 5. 修改后要检查的文件
 
 - `src/lib/api.js`

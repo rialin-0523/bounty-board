@@ -15,6 +15,7 @@
 - 后台页：任务 CRUD、跟单管理、用户管理、配置管理
 - 斗鱼绑定页：生成识别码、等待弹幕命中、回写斗鱼资料、设置用户名和密码
 - 登录页：用户名密码登录，浏览器可长期保持登录态
+- 管理后台：`/xiaoyangadmin/`，超级管理员账号单独登录
 
 ## 技术栈
 
@@ -113,7 +114,7 @@ node --check server/auth.mjs
 
 完整业务验证：
 
-1. 打开 `/bind`。
+1. 打开 `/bind`，先完成斗鱼绑定。
 2. 点击生成识别码。
 3. 用斗鱼账号到指定直播间发送该识别码。
 4. 页面出现斗鱼 UID、昵称、头像、等级、粉丝牌。
@@ -131,11 +132,20 @@ node --check server/auth.mjs
 
 推荐：
 
-- 前端：Vercel / 静态站点 / CDN。
+- 前台域名：`https://xd.miyang.cloud/`，静态资源可以直接放 GitHub 仓库并同步到服务器发布目录。
+- 后台路由：`https://xd.miyang.cloud/xiaoyangadmin/`。
 - 后端：一台能常驻运行 Node 的服务器。
-- 生产：前端域名和 `/api` 最好同域反向代理，方便 httpOnly Cookie 稳定生效。
+- 生产：前台和 `/api` 最好同域反向代理，方便 httpOnly Cookie 稳定生效。
+
+当前部署口径是：GitHub 仓库保留前端源码与构建流程，服务器只托管构建后的前端文件和 Node 后端。
 
 ## 常见问题
+
+### 前台和后台访问地址
+
+- 前台：`https://xd.miyang.cloud/`
+- 后台：`https://xd.miyang.cloud/xiaoyangadmin/`
+
 
 ### 页面能打开，但生成识别码失败
 
