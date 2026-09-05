@@ -54,7 +54,7 @@ npm run server
 npm run dev
 ```
 
-生产部署默认前台地址：`https://xd.miyang.cloud/`，后台地址：`https://xd.miyang.cloud/xiaoyangadmin/`。
+生产部署默认前台地址：`https://xd.miyang.cloud/`，后台地址：`https://xd.miyang.cloud/xiaoyangadmin/`。当前服务器上 HTTP 已通，HTTPS 证书待后续补齐。
 
 ## 5. 修改后要检查的文件
 

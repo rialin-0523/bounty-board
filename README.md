@@ -139,6 +139,8 @@ node --check server/auth.mjs
 
 当前部署口径是：GitHub 仓库保留前端源码与构建流程，服务器只托管构建后的前端文件和 Node 后端。
 
+> 说明：`xd.miyang.cloud` 目前已能通过 HTTP 打开；HTTPS 证书申请在当前服务器上遇到 Let's Encrypt 校验超时，后续补到 HTTPS 后再把同域访问切回完全加密。
+
 ## 常见问题
 
 ### 前台和后台访问地址
