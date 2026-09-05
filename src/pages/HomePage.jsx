@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import Layout from '../components/Layout'
+import { useAuth } from '../context/useAuth'
 import {
   listMainChallengesWithHidden,
   aggregateFollowOrders,
@@ -10,6 +11,7 @@ import {
 import './HomePage.css'
 
 export default function HomePage() {
+  const { user: currentUser } = useAuth()
   const [challenges, setChallenges] = useState([])
   const [followMap, setFollowMap] = useState({})
   const [loading, setLoading] = useState(true)
@@ -18,14 +20,10 @@ export default function HomePage() {
   const [giftFilter, setGiftFilter] = useState('全部')
   const [busy, setBusy] = useState(null)
 
-  useEffect(() => {
-    fetchAll()
-  }, [])
-
-  async function fetchAll() {
+  const fetchAll = useCallback(async () => {
     setLoading(true)
     try {
-      const cs = await listMainChallengesWithHidden()
+      const cs = await listMainChallengesWithHidden({ currentUserId: currentUser?.id || null })
       setChallenges(cs)
       const fm = {}
       await Promise.all(cs.map(async c => {
@@ -42,12 +40,21 @@ export default function HomePage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [currentUser])
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchAll()
+  }, [fetchAll])
 
   function getTotal(c) {
     const fm = followMap[c.id]
     if (!fm) return c.gift_quantity
     return c.gift_quantity + (fm.acc[c.gift_type] || 0)
+  }
+
+  function isMainCreator(c) {
+    return currentUser && c.created_by === currentUser.id
   }
 
   async function handleComplete(c, e) {
@@ -148,13 +155,13 @@ export default function HomePage() {
                   )}
                 </div>
 
-                {c.hidden_challenges && c.hidden_challenges.length > 0 && (
+                {isMainCreator(c) && c.hidden_total_count > 0 && (
                   <div className="cb-hidden-badge">
-                    🎁 包含 {c.hidden_challenges.length} 个隐藏任务
+                    🎁 包含 {c.hidden_total_count} 个隐藏任务
                   </div>
                 )}
 
-                {c.status === 'active' && (
+                {c.status === 'active' && isMainCreator(c) && (
                   <button
                     className="cb-complete-btn"
                     onClick={(e) => handleComplete(c, e)}

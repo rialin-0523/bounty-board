@@ -1,9 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Layout from '../components/Layout'
+import { useAuth } from '../context/useAuth'
 import {
   listChallenges,
   createChallenge,
+  checkCurrentUserPermission,
   GIFT_TYPES,
   GIFT_ICONS,
 } from '../lib/api'
@@ -22,30 +24,61 @@ const emptyForm = {
 
 export default function PublishPage() {
   const navigate = useNavigate()
+  const { user: currentUser } = useAuth()
   const [mainChallenges, setMainChallenges] = useState([])
   const [form, setForm] = useState(emptyForm)
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState(false)
+  const [permission, setPermission] = useState({ loading: true, allowed: false, message: '' })
 
-    useEffect(() => {
-    let active = true
+  const fetchOptions = useCallback(async () => {
+    try {
+      const all = await listChallenges()
+      setMainChallenges(all.filter(c => c.parent_challenge_id == null))
+    } catch (e) {
+      console.error(e)
+    }
+  }, [])
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchOptions()
+  }, [fetchOptions])
+
+  useEffect(() => {
+    let cancelled = false
     ;(async () => {
+      if (!currentUser) {
+        if (!cancelled) {
+          setPermission({ loading: false, allowed: false, message: '请先登录后再发布任务' })
+        }
+        return
+      }
       try {
-        const all = await listChallenges()
-        if (!active) return
-        setMainChallenges(all.filter(c => c.parent_challenge_id == null))
-      } catch (e) {
-        console.error(e)
+        const perm = await checkCurrentUserPermission(currentUser)
+        if (!cancelled) setPermission({ loading: false, ...perm })
+      } catch (err) {
+        if (!cancelled) {
+          setPermission({ loading: false, allowed: false, message: err.message || '权限检查失败' })
+        }
       }
     })()
     return () => {
-      active = false
+      cancelled = true
     }
-  }, [])
+  }, [currentUser])
 
   async function handleSubmit(e) {
     e.preventDefault()
 
+    if (!currentUser) {
+      alert('请先登录后再发布任务')
+      return
+    }
+    if (!permission.allowed) {
+      alert(permission.message || '当前账号暂时无法发布任务')
+      return
+    }
     if (!form.boss_id.trim()) {
       alert('请填写老板ID（昵称）')
       return
@@ -75,6 +108,7 @@ export default function PublishPage() {
         gift_quantity: qty,
         is_hidden: form.is_hidden,
         parent_challenge_id: form.is_hidden ? form.parent_challenge_id : null,
+        created_by: currentUser?.id || null,
         status: 'active',
       }
       const created = await createChallenge(payload)
@@ -109,6 +143,22 @@ export default function PublishPage() {
           <div className="publish-card-border"></div>
           <h1 className="publish-title">发布挑战</h1>
           <p className="publish-subtitle">填好下面信息，任务立刻出现在首页</p>
+
+          {currentUser ? (
+            <div className="publish-current-user">
+              当前：<strong>{currentUser.douyu_nickname || currentUser.douyu_id || currentUser.username}</strong>
+              {currentUser.douyu_level > 0 && <span className="publish-user-lv"> LV{currentUser.douyu_level}</span>}
+              {currentUser.is_blacklisted && <span className="publish-user-banned">已拉黑</span>}
+            </div>
+          ) : (
+            <div className="publish-current-user is-warning">
+              请先登录后再发布任务。
+            </div>
+          )}
+
+          {!permission.loading && !permission.allowed && currentUser && (
+            <div className="publish-current-user is-warning">{permission.message}</div>
+          )}
 
           <form onSubmit={handleSubmit} className="publish-form">
             <fieldset className="publish-section">
@@ -224,7 +274,7 @@ export default function PublishPage() {
               <button
                 type="submit"
                 className="publish-btn-primary"
-                disabled={submitting}
+                disabled={submitting || !currentUser || !permission.allowed}
               >
                 {submitting ? '发布中...' : '🚀 立即发布'}
               </button>

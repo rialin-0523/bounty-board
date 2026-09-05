@@ -17,16 +17,20 @@ function userShape(row) {
   if (!row) return null
   return {
     id: row.id,
-    username: row.username,
-    douyu: {
-      uid: row.douyu_uid,
-      name: row.douyu_name,
-      avatar: row.douyu_avatar || '',
-      level: row.douyu_level ?? null,
-      badgeName: row.douyu_badge_name || '',
-      badgeLevel: row.douyu_badge_level ?? 0,
-    },
+    username: row.username || '',
+    username_normalized: row.username_normalized || '',
+    douyu_id: row.douyu_uid || row.douyu_id || '',
+    douyu_uid: row.douyu_uid || row.douyu_id || '',
+    douyu_nickname: row.douyu_nickname || row.douyu_name || '',
+    douyu_name: row.douyu_name || row.douyu_nickname || '',
+    douyu_avatar: row.douyu_avatar || '',
+    douyu_level: row.douyu_level ?? 0,
+    douyu_badge_name: row.douyu_badge_name || '',
+    douyu_badge_level: row.douyu_badge_level ?? 0,
+    is_blacklisted: Boolean(row.is_blacklisted),
+    bind_session_id: row.bind_session_id || null,
     createdAt: row.created_at,
+    updatedAt: row.updated_at,
     lastLoginAt: row.last_login_at,
   }
 }
@@ -188,19 +192,20 @@ export async function completeBindSession(id, { username, password }) {
   const saltHash = makePasswordHash(password)
   const usernameNormalized = normalizeUsername(username)
   const insertResult = await supabase
-    .from('app_users')
+    .from('users')
     .insert({
       username: String(username || '').trim(),
       username_normalized: usernameNormalized,
       password_salt: saltHash.salt,
       password_hash: saltHash.hash,
       douyu_uid: douyuUid,
-      douyu_name: douyuName,
+      douyu_nickname: douyuName,
       douyu_avatar: String(bindRow.matched_avatar || '').trim(),
       douyu_level: bindRow.matched_level ?? null,
       douyu_badge_name: String(bindRow.matched_badge_name || '').trim(),
       douyu_badge_level: bindRow.matched_badge_level ?? 0,
       bind_session_id: bindRow.id,
+      is_blacklisted: false,
       created_at: nowIso(),
       updated_at: nowIso(),
     })
@@ -208,7 +213,7 @@ export async function completeBindSession(id, { username, password }) {
     .single()
   if (insertResult.error) {
     if (insertResult.error.code === '23505' && /username/i.test(insertResult.error.message || '')) throw new Error('这个用户名已经被使用')
-    if (insertResult.error.code === '23505' && /douyu_uid/i.test(insertResult.error.message || '')) throw new Error('这个斗鱼账号已经绑定过')
+    if (insertResult.error.code === '23505' && /douyu/i.test(insertResult.error.message || '')) throw new Error('这个斗鱼账号已经绑定过')
     throw insertResult.error
   }
 
@@ -226,7 +231,7 @@ export async function completeBindSession(id, { username, password }) {
     .single()
   if (sessionResult.error) throw sessionResult.error
 
-  await supabase.from('app_users').update({ last_login_at: nowIso(), updated_at: nowIso() }).eq('id', insertResult.data.id)
+  await supabase.from('users').update({ last_login_at: nowIso(), updated_at: nowIso() }).eq('id', insertResult.data.id)
   const completeResult = await supabase
     .from('bind_sessions')
     .update({ status: 'completed', completed_at: nowIso(), user_id: insertResult.data.id, updated_at: nowIso() })
@@ -247,7 +252,7 @@ export async function loginWithUsernamePassword({ username, password }) {
   const supabase = requireAdmin()
   const usernameNormalized = normalizeUsername(username)
   const result = await supabase
-    .from('app_users')
+    .from('users')
     .select('*')
     .eq('username_normalized', usernameNormalized)
     .single()
@@ -268,7 +273,7 @@ export async function loginWithUsernamePassword({ username, password }) {
     .select('*')
     .single()
   if (sessionResult.error) throw sessionResult.error
-  await supabase.from('app_users').update({ last_login_at: nowIso(), updated_at: nowIso() }).eq('id', result.data.id)
+  await supabase.from('users').update({ last_login_at: nowIso(), updated_at: nowIso() }).eq('id', result.data.id)
   return { user: userShape(result.data), session: sessionShape(sessionResult.data, result.data), token: sessionToken }
 }
 
@@ -284,7 +289,7 @@ export async function getUserBySessionToken(token) {
     .maybeSingle()
   if (sessionResult.error || !sessionResult.data) return null
   const row = sessionResult.data
-  const userResult = await supabase.from('app_users').select('*').eq('id', row.user_id).maybeSingle()
+  const userResult = await supabase.from('users').select('*').eq('id', row.user_id).maybeSingle()
   if (userResult.error || !userResult.data) return null
   await supabase
     .from('auth_sessions')

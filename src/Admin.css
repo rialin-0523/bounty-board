@@ -255,6 +255,14 @@
   color: #aaa;
 }
 
+.admin-row-banned {
+  background: rgba(230, 0, 18, 0.1);
+}
+
+.admin-row-banned td {
+  color: #ff8080;
+}
+
 .admin-list button {
   background: #444;
   color: white;

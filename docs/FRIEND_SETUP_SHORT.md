@@ -1,19 +1,15 @@
 # 发给合作开发者的简短执行版
 
-请先合并 PR：
-
-- https://github.com/rialin-0523/bounty-board/pull/2
-
-然后按下面顺序做：
+请先把主分支最新代码和当前绑定代码一起合并到数据库对应版本，然后按下面顺序做：
 
 1. 不要清空现有 Supabase 数据库。
-2. 如果当前 Supabase 已经有 `challenges`、`follow_orders` 等任务表，只在 SQL Editor 执行：
+2. 如果当前数据库还没有 `users` / `settings` / `created_by` / 斗鱼绑定相关表，请优先执行：
 
 ```text
 supabase/binding_increment.sql
 ```
 
-3. 配置后端环境变量，至少需要：
+3. 后端环境变量至少需要：
 
 ```bash
 SUPABASE_URL=现有 Supabase 项目 URL
@@ -43,9 +39,11 @@ npm run build
 
 必须检查 Supabase：
 
-- `app_users.douyu_uid` 有值，且同一个 UID 不会重复。
+- `users.douyu_uid` 有值，且同一个 UID 不会重复。
 - `bind_sessions` 有 matched/completed 记录。
 - `auth_sessions` 有登录记录。
+- `challenges.created_by` 和 `follow_orders.created_by` 有写入。
+- `settings.min_douyu_level` 能正常读取 / 修改。
 
 详细文档看：
 

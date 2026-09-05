@@ -32,7 +32,11 @@ export default function Layout({ children }) {
             <>
               <div className="brand-account">
                 <span className="brand-account-dot"></span>
-                <span>{user.username}</span>
+                <span>
+                  {user.username || user.douyu_nickname || user.douyu_id}
+                  {user.douyu_level > 0 ? ` · LV${user.douyu_level}` : ''}
+                  {user.is_blacklisted ? ' · 已拉黑' : ''}
+                </span>
               </div>
               <button type="button" className="brand-signout" onClick={signOut}>
                 退出

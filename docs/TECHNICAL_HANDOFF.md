@@ -1,147 +1,52 @@
-# 悬赏令技术接手文档
+# 悬赏令技术接手说明
 
-本文给接手开发/部署的人使用，重点说明现有 SQL 数据库如何接入“斗鱼账号绑定 + 用户登录”。
+## 1. 项目是什么
 
-## 一句话结论
+这是一个 React + Vite + Supabase PostgreSQL 的武侠风任务悬赏平台，带斗鱼账号绑定和长期登录能力。
 
-项目已经使用 Supabase PostgreSQL，不需要重建数据库。请合并功能分支后，在现有 Supabase 项目里执行增量 SQL：
+当前代码已经把两条主线合并：
 
-```text
-supabase/binding_increment.sql
-```
+- 主分支 v3 任务系统：`users`、`settings`、`created_by`、隐藏任务可见性、黑名单、最低斗鱼等级。
+- 斗鱼绑定系统：2 分钟识别码、指定直播间弹幕命中、斗鱼资料回写、用户名密码注册、长期登录 Cookie。
 
-不要为了绑定功能清空数据库，也不要重新创建一套数据库。
+## 2. 运行结构
 
-## 当前仓库和分支
+- 前端：`src/`
+- 后端：`server/`
+- 数据库迁移：`supabase/migration.sql`
+- 已有数据库增量脚本：`supabase/binding_increment.sql`
 
-- 仓库：[https://github.com/rialin-0523/bounty-board](https://github.com/rialin-0523/bounty-board)
-- 功能 PR：[https://github.com/rialin-0523/bounty-board/pull/2](https://github.com/rialin-0523/bounty-board/pull/2)
-- 功能分支：`codex/douyu-bind-flow`
+## 3. 关键规则
 
-## 项目架构
+### 3.1 用户表
 
-```mermaid
-flowchart TD
-  Browser["用户浏览器 / React 前端"] --> Vite["Vite 前端页面"]
-  Vite --> Api["/api 后端服务"]
-  Api --> Db["Supabase PostgreSQL"]
-  Api --> Douyu["斗鱼弹幕 TCP 监听"]
-  Douyu --> Api
-  Db --> Api
-  Api --> Browser
-```
+当前统一以 `users` 为准，字段同时承载：
 
-- 前端负责页面展示、生成绑定流程入口、轮询绑定状态、登录页。
-- 后端负责生成识别码、监听斗鱼弹幕、写用户数据库、签发长期登录 Cookie。
-- Supabase PostgreSQL 保存任务、绑定、用户和登录会话数据。
+- 站内账号：`username`、`username_normalized`、`password_salt`、`password_hash`
+- 斗鱼资料：`douyu_uid`、`douyu_nickname`、`douyu_avatar`、`douyu_level`、`douyu_badge_name`、`douyu_badge_level`
+- 权限状态：`is_blacklisted`、`last_login_at`
 
-## 关键业务规则
+`app_users` 只应视作旧数据迁移痕迹，不再作为主代码依赖。
 
-1. 用户点击绑定斗鱼账号。
-2. 后端生成 6 位识别码：大小写不敏感，数字 + 字母混合。
-3. 识别码有效期 2 分钟，并且同一天不重复。
-4. 用户必须用自己的斗鱼账号，把识别码原样发到指定直播间。
-5. 后端只接受“弹幕内容完全等于识别码”，不接受夹杂其它文字。
-6. 命中后必须保存斗鱼 UID；昵称只是展示字段，因为昵称可修改。
-7. 同一个斗鱼 UID 只能绑定一个站内账号。
-8. 用户设置用户名和密码后，正式账号写入 `app_users`。
-9. 登录态通过 httpOnly Cookie 保持，数据库只保存 session token 哈希。
+### 3.2 配置表
 
-## 斗鱼监听策略
+- `settings.min_douyu_level` 控制最低斗鱼等级。
+- 后台“配置管理” tab 修改后，发布、跟单、添加隐藏任务都会受影响。
 
-不是全程监听直播间。
+### 3.3 任务可见性
 
-- 平时不监听。
-- 第一个用户生成绑定码时启动监听。
-- 同时多人绑定时共用一个监听连接。
-- 没有有效绑定码后，空闲 30 秒自动关闭监听。
+- `created_by` 必须写入任务和跟单。
+- 隐藏任务只对创建者自己、以及主任务创建者可见。
+- 首页和详情页都按登录用户做可见性过滤。
 
-相关代码：
+### 3.4 斗鱼绑定
 
-- `server/index.mjs`：监听生命周期、API 路由、绑定状态刷新。
-- `server/douyu.mjs`：斗鱼弹幕协议解析、头像地址规范化、资料字段提取。
-- `server/store.mjs`：Supabase 写库、用户注册、登录会话。
+- 用户点击生成识别码后，后端生成 6 位码，TTL 2 分钟。
+- 后端只在存在有效绑定码时监听斗鱼弹幕。
+- 命中后回写 UID / 昵称 / 头像 / 等级 / 粉丝牌等级，再让用户设置站内用户名和密码。
+- 完成后创建 `auth_sessions`，Cookie 保持长期登录。
 
-## 与主分支新用户系统的兼容关系
-
-主分支最新代码已经引入了另一套用户/权限库：`users`、`settings`、`created_by`、黑名单、最低斗鱼等级配置。
-
-这个项目后续合并时要并行保留两套库，不要互相覆盖：
-
-- `users` / `settings`：主分支已有的任务权限与黑名单体系。
-- `app_users` / `auth_sessions` / `bind_sessions` / `douyu_profiles`：本次新增的斗鱼绑定与登录体系。
-
-如果后续要做统一登录映射，可以再单独设计字段迁移，但当前阶段不要直接删掉主分支已有的 `users` / `settings`。
-
-## 数据库说明
-
-现有任务相关表继续保留：
-
-- `challenges`
-- `follow_orders`
-- `challenge_gifts` 视图
-
-斗鱼绑定新增 4 张表：
-
-| 表 | 用途 |
-|---|---|
-| `douyu_profiles` | 斗鱼用户资料缓存，保存 UID、昵称、头像、等级、粉丝牌等 |
-| `bind_sessions` | 识别码会话，保存 code、有效期、命中弹幕、状态 |
-| `app_users` | 正式用户表，保存用户名、密码哈希、斗鱼 UID 等 |
-| `auth_sessions` | 长期登录会话表，只保存 token 哈希 |
-
-`app_users.douyu_uid` 是账号身份核心字段，必须唯一。
-
-## 数据库执行方式
-
-如果线上/合作 Supabase 已经有任务表，请只执行：
-
-```text
-supabase/binding_increment.sql
-```
-
-如果是全新空数据库，可以执行：
-
-```text
-supabase/migration.sql
-```
-
-推荐操作：
-
-1. 打开 Supabase Dashboard。
-2. 进入项目。
-3. 打开 SQL Editor。
-4. 粘贴 `supabase/binding_increment.sql` 全文。
-5. Run。
-6. 到 Table Editor 确认 4 张表已创建。
-
-## 环境变量
-
-复制 `.env.example` 为 `.env`，填真实值：
-
-```bash
-VITE_SUPABASE_URL=https://你的项目.supabase.co
-VITE_SUPABASE_ANON_KEY=前端公开 publishable/anon key
-
-SUPABASE_URL=https://你的项目.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=后端私密 service_role/secret key
-
-DOUYU_BIND_ROOM_ID=63136
-APP_TIME_ZONE=Asia/Shanghai
-BIND_SERVER_ALLOW_ORIGIN=http://127.0.0.1:5173
-DOUYU_BIND_IDLE_STOP_MS=30000
-COOKIE_SECURE=false
-```
-
-线上 HTTPS 环境：
-
-```bash
-COOKIE_SECURE=true
-```
-
-注意：`SUPABASE_SERVICE_ROLE_KEY` / secret key 不能放前端，不能提交 GitHub，只能放服务端环境变量。
-
-## 本地启动
+## 4. 启动方式
 
 ```bash
 npm install
@@ -149,23 +54,20 @@ npm run server
 npm run dev
 ```
 
-默认 Vite 会把 `/api` 代理到：
+## 5. 修改后要检查的文件
 
-```text
-http://127.0.0.1:8788
-```
+- `src/lib/api.js`
+- `src/pages/HomePage.jsx`
+- `src/pages/PublishPage.jsx`
+- `src/pages/ChallengeDetail.jsx`
+- `src/Admin.jsx`
+- `src/components/Layout.jsx`
+- `server/store.mjs`
+- `supabase/migration.sql`
+- `supabase/binding_increment.sql`
+- `README.md`
 
-## 部署提醒
-
-这个功能不能只部署静态前端，因为斗鱼弹幕监听需要常驻 Node 服务。
-
-推荐：
-
-- 前端：Vercel / 静态站点 / CDN。
-- 后端：一台能常驻运行 Node 的服务器。
-- 生产：前端域名和 `/api` 最好同域反向代理，方便 httpOnly Cookie 稳定生效。
-
-## 验证清单
+## 6. 验证清单
 
 ```bash
 npm run build
@@ -176,39 +78,8 @@ node --check server/store.mjs
 node --check server/auth.mjs
 ```
 
-完整业务验证：
+## 7. 当前注意点
 
-1. 打开 `/bind`。
-2. 点击生成识别码。
-3. 用斗鱼账号到 `DOUYU_BIND_ROOM_ID` 对应直播间发送该识别码。
-4. 页面出现斗鱼 UID、昵称、头像、等级、粉丝牌。
-5. 输入用户名和两次密码。
-6. 完成绑定并跳回首页。
-7. Supabase 检查：
-   - `bind_sessions` 有 matched/completed 记录。
-   - `app_users` 有用户记录，且 `douyu_uid` 不为空。
-   - `auth_sessions` 有登录会话记录。
-8. 关闭浏览器再打开，确认仍是登录状态。
-
-## 常见问题
-
-### 页面能打开，但生成识别码失败
-
-检查后端是否启动，以及 `.env` 是否有 `SUPABASE_SERVICE_ROLE_KEY`。
-
-### 能生成识别码，但发弹幕没反应
-
-检查：
-
-- `DOUYU_BIND_ROOM_ID` 是否是正确直播间。
-- 后端日志是否显示斗鱼连接成功。
-- 弹幕内容是否完全等于识别码。
-- 是否已经超过 2 分钟。
-
-### 绑定完成失败，提示斗鱼账号已绑定
-
-这是正常保护：同一个斗鱼 UID 只能绑定一次。
-
-### 昵称改了怎么办
-
-不影响登录。系统身份认 `douyu_uid`，昵称只用于显示。
+- 后端需要 `SUPABASE_SECRET_KEY` 或 `SUPABASE_SERVICE_ROLE_KEY`。
+- 斗鱼监听只在有有效绑定码时启动，空闲会自动停。
+- 如果主分支数据库还没有 `users` / `settings` / `created_by`，先跑 `supabase/binding_increment.sql` 或直接按 `supabase/migration.sql` 初始化。
