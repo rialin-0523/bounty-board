@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import Layout from '../components/Layout'
 import {
@@ -26,11 +26,8 @@ export default function ChallengeDetail() {
   const [submitting, setSubmitting] = useState(false)
   const [completing, setCompleting] = useState(false)
 
-  useEffect(() => {
-    fetchAll()
-  }, [id])
 
-  async function fetchAll() {
+  const fetchAll = useCallback(async () => {
     setLoading(true)
     try {
       const c = await getChallenge(id)
@@ -59,7 +56,12 @@ export default function ChallengeDetail() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [id])
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchAll()
+  }, [fetchAll])
 
   function getTotal(c) {
     if (c.id === challenge?.id) {

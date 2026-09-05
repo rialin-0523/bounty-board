@@ -18,38 +18,38 @@ export default function ChallengeBoard() {
   const [statusFilter, setStatusFilter] = useState('全部')
   const [giftFilter, setGiftFilter] = useState('全部')
 
-  useEffect(() => {
-    fetchAll()
-  }, [])
-
-  async function fetchAll() {
-    setLoading(true)
-    try {
-      const [cs, ss] = await Promise.all([
-        listMainChallengesWithHidden(),
-        listStreamers(),
-      ])
-      setChallenges(cs)
-      setStreamers(ss)
-      // 并发拉跟单汇总
-      const fm = {}
-      await Promise.all(cs.map(async c => {
-        fm[c.id] = await aggregateFollowOrders(c.id)
-        // 也拉隐藏任务的跟单
-        if (c.hidden_challenges) {
-          for (const h of c.hidden_challenges) {
-            fm[h.id] = await aggregateFollowOrders(h.id)
+    useEffect(() => {
+    let active = true
+    ;(async () => {
+      try {
+        const [cs, ss] = await Promise.all([
+          listMainChallengesWithHidden(),
+          listStreamers(),
+        ])
+        if (!active) return
+        setChallenges(cs)
+        setStreamers(ss)
+        const fm = {}
+        await Promise.all(cs.map(async c => {
+          fm[c.id] = await aggregateFollowOrders(c.id)
+          if (c.hidden_challenges) {
+            for (const h of c.hidden_challenges) {
+              fm[h.id] = await aggregateFollowOrders(h.id)
+            }
           }
-        }
-      }))
-      setFollowMap(fm)
-    } catch (e) {
-      console.error(e)
-      alert('加载失败：' + e.message)
-    } finally {
-      setLoading(false)
+        }))
+        if (active) setFollowMap(fm)
+      } catch (e) {
+        console.error(e)
+        alert('加载失败：' + e.message)
+      } finally {
+        if (active) setLoading(false)
+      }
+    })()
+    return () => {
+      active = false
     }
-  }
+  }, [])
 
   function getStreamer(id) {
     return streamers.find(s => s.id === id)

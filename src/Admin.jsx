@@ -1,4 +1,4 @@
-import { useState, useEffect, Fragment } from 'react'
+import { useCallback, useEffect, useState, Fragment } from 'react'
 import {
   listMainChallengesWithHidden,
   listChallenges,
@@ -41,18 +41,23 @@ function Admin() {
   const [challenges, setChallenges] = useState([])
   const [allChallenges, setAllChallenges] = useState([])
   const [followOrders, setFollowOrders] = useState([])
-  const [loading, setLoading] = useState(true)
 
   const [challengeForm, setChallengeForm] = useState(emptyChallenge)
   const [editingChallenge, setEditingChallenge] = useState(null)
   const [followForm, setFollowForm] = useState(emptyFollow)
 
-  useEffect(() => {
-    if (authenticated) fetchData()
-  }, [authenticated])
 
-  async function fetchData() {
-    setLoading(true)
+  const loadAllFollowOrders = useCallback(async () => {
+    const all = await listChallenges()
+    const all2 = []
+    for (const c of all) {
+      const os = await listFollowOrders(c.id)
+      os.forEach(o => all2.push({ ...o, challenge_title: c.title }))
+    }
+    return all2
+  }, [])
+
+  const fetchData = useCallback(async () => {
     try {
       const [cs, allC, fos] = await Promise.all([
         listMainChallengesWithHidden(),
@@ -65,26 +70,20 @@ function Admin() {
     } catch (e) {
       console.error(e)
       alert('加载失败：' + e.message)
-    } finally {
-      setLoading(false)
     }
-  }
+  }, [loadAllFollowOrders])
 
-  async function loadAllFollowOrders() {
-    const all = await listChallenges()
-    const all2 = []
-    for (const c of all) {
-      const os = await listFollowOrders(c.id)
-      os.forEach(o => all2.push({ ...o, challenge_title: c.title }))
-    }
-    return all2
-  }
+  useEffect(() => {
+    if (!authenticated) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchData()
+  }, [authenticated, fetchData])
+
 
   function handleLogin(e) {
     e.preventDefault()
     if (password === ADMIN_PASSWORD) {
       setAuthenticated(true)
-      fetchData()
     } else {
       alert('密码错误')
     }

@@ -1,8 +1,11 @@
 import { Link, useLocation } from 'react-router-dom'
+import { useAuth } from '../context/useAuth'
 import '../App.css'
 
 export default function Layout({ children }) {
   const location = useLocation()
+  const { user, signOut } = useAuth()
+
   return (
     <div>
       <header className="app-brand">
@@ -19,6 +22,30 @@ export default function Layout({ children }) {
           >
             + 发布挑战
           </Link>
+          <Link
+            to="/bind"
+            className={`brand-action secondary ${location.pathname === '/bind' ? 'active' : ''}`}
+          >
+            绑定斗鱼
+          </Link>
+          {user ? (
+            <>
+              <div className="brand-account">
+                <span className="brand-account-dot"></span>
+                <span>{user.username}</span>
+              </div>
+              <button type="button" className="brand-signout" onClick={signOut}>
+                退出
+              </button>
+            </>
+          ) : (
+            <Link
+              to="/login"
+              className={`brand-action secondary ${location.pathname === '/login' ? 'active' : ''}`}
+            >
+              登录
+            </Link>
+          )}
           <div className="brand-season">
             <span className="season-dot"></span>
             <span>突围特工队 / S1</span>

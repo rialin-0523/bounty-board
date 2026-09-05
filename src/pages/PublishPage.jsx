@@ -27,18 +27,21 @@ export default function PublishPage() {
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState(false)
 
-  useEffect(() => {
-    fetchOptions()
-  }, [])
-
-  async function fetchOptions() {
-    try {
-      const all = await listChallenges()
-      setMainChallenges(all.filter(c => c.parent_challenge_id == null))
-    } catch (e) {
-      console.error(e)
+    useEffect(() => {
+    let active = true
+    ;(async () => {
+      try {
+        const all = await listChallenges()
+        if (!active) return
+        setMainChallenges(all.filter(c => c.parent_challenge_id == null))
+      } catch (e) {
+        console.error(e)
+      }
+    })()
+    return () => {
+      active = false
     }
-  }
+  }, [])
 
   async function handleSubmit(e) {
     e.preventDefault()

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import Layout from '../components/Layout'
 import {
   listMainChallengesWithHidden,
@@ -10,7 +10,6 @@ import {
 import './HomePage.css'
 
 export default function HomePage() {
-  const navigate = useNavigate()
   const [challenges, setChallenges] = useState([])
   const [followMap, setFollowMap] = useState({})
   const [loading, setLoading] = useState(true)
