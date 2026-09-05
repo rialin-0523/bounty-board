@@ -8,10 +8,10 @@ export const DOUYU_DANMAKU_HOSTS = (process.env.DOUYU_DANMAKU_HOSTS || 'danmupro
   .filter(Boolean)
 
 export const SUPABASE_URL = process.env.SUPABASE_URL || 'https://tbtvgdeljiiwzixwiwue.supabase.co'
-export const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+export const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 
 if (!SUPABASE_SERVICE_ROLE_KEY) {
-  console.warn('[bind-server] Missing SUPABASE_SERVICE_ROLE_KEY; backend will not be able to write data.')
+  console.warn('[bind-server] Missing SUPABASE_SECRET_KEY/SUPABASE_SERVICE_ROLE_KEY; backend will not be able to write data.')
 }
 
 export const supabaseAdmin = SUPABASE_SERVICE_ROLE_KEY

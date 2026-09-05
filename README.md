@@ -22,11 +22,18 @@
   - 用户密码不存明文，只存 `scrypt` 哈希和盐。
   - 登录 Cookie 只给浏览器，数据库只存 token 哈希。
 
+## 技术文档
+
+- `docs/TECHNICAL_HANDOFF.md`：给合作开发者/部署人员的完整接手说明。
+- `supabase/binding_increment.sql`：已有 Supabase SQL 数据库只需要执行的增量建表脚本。
+- `supabase/migration.sql`：全新空数据库初始化脚本。
+
 ## 目录说明
 
 - `src/`：前端页面和组件
 - `server/`：绑定码生成、斗鱼弹幕监听、账号和会话接口
-- `supabase/migration.sql`：Supabase 表结构和安全约束
+- `supabase/migration.sql`：全新数据库表结构和安全约束
+- `supabase/binding_increment.sql`：已有数据库专用的斗鱼绑定增量 SQL
 
 ## 运行逻辑图
 
@@ -64,7 +71,7 @@ flowchart TD
 
 ## 数据库表
 
-执行 `supabase/migration.sql` 后会有这些和绑定/登录相关的表：
+如果是已有 Supabase 数据库，执行 `supabase/binding_increment.sql` 后会补齐这些和绑定/登录相关的表；如果是全新空数据库，可以执行 `supabase/migration.sql`：
 
 - `douyu_profiles`：斗鱼用户资料缓存，保存房间、UID、昵称、头像、等级、粉丝牌、最近发言时间等。
 - `bind_sessions`：绑定识别码会话，保存识别码、有效期、命中的斗鱼资料、原始命中弹幕和完成状态。
@@ -81,7 +88,8 @@ flowchart TD
 VITE_SUPABASE_URL=https://tbtvgdeljiiwzixwiwue.supabase.co
 VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
 SUPABASE_URL=https://tbtvgdeljiiwzixwiwue.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=your-supabase-service-role-key
+SUPABASE_SECRET_KEY=your-supabase-secret-or-service-role-key
+# SUPABASE_SERVICE_ROLE_KEY=your-legacy-service-role-key
 DOUYU_BIND_ROOM_ID=63136
 APP_TIME_ZONE=Asia/Shanghai
 BIND_SERVER_ALLOW_ORIGIN=http://127.0.0.1:5173
@@ -119,8 +127,8 @@ npm run server
 
 1. 克隆仓库。
 2. 执行 `npm install`。
-3. 在 Supabase SQL Editor 里执行 `supabase/migration.sql`。
-4. 按 `.env.example` 补齐 `.env`，尤其是 `SUPABASE_SERVICE_ROLE_KEY`。
+3. 已有数据库执行 `supabase/binding_increment.sql`；全新空数据库才执行 `supabase/migration.sql`。
+4. 按 `.env.example` 补齐 `.env`，尤其是 `SUPABASE_SECRET_KEY` 或 `SUPABASE_SERVICE_ROLE_KEY`。
 5. 本地执行 `npm run server` 和 `npm run dev`。
 6. 打开前端 `/bind`，生成识别码并发到配置的斗鱼直播间验证。
 7. 验证数据库里 `bind_sessions`、`app_users`、`auth_sessions` 均有记录。
@@ -139,7 +147,7 @@ node --check server/auth.mjs
 ## 注意事项
 
 - `src/lib/supabase.js` 现在支持环境变量，也保留了默认值，方便本地先跑起来。
-- 后端没有拿到 `SUPABASE_SERVICE_ROLE_KEY` 时，只能启动基础 HTTP 服务，无法写库和监听绑定流程。
+- 后端没有拿到 `SUPABASE_SECRET_KEY` / `SUPABASE_SERVICE_ROLE_KEY` 时，只能启动基础 HTTP 服务，无法写库和监听绑定流程。
 - 后台密码目前仍是前端轻量门禁，后续如果要正式上线，建议换成真正的后端鉴权。
 - 所有头像展示都压到小尺寸：绑定确认头像 36px，其它列表/详情头像 24-32px，并启用懒加载，避免大头像撑开页面。
 - 斗鱼头像字段已按斗鱼图片地址规则规范化；如果仍然无法识别为可访问图片，前端会显示占位头像。
@@ -155,3 +163,4 @@ node --check server/auth.mjs
 - 前端改用 `/api` 绑定服务，支持长期登录态。
 - 所有头像展示压缩为小尺寸。
 - 数据库新增用户资料完整入库、账号唯一性、RLS 和注释说明。
+- 新增 `docs/TECHNICAL_HANDOFF.md` 和 `supabase/binding_increment.sql`，方便合作开发者在已有 SQL 数据库上增量接入。
