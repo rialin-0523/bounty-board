@@ -6,7 +6,10 @@ import {
   listChallenges,
   aggregateFollowOrders,
   createFollowOrder,
+  createChallenge,
   updateChallenge,
+  getCurrentUser,
+  checkCurrentUserPermission,
   GIFT_ICONS,
   GIFT_TYPES,
 } from '../lib/api'
@@ -17,16 +20,34 @@ export default function ChallengeDetail() {
   const navigate = useNavigate()
   const [challenge, setChallenge] = useState(null)
   const [hiddenList, setHiddenList] = useState([])
+  const [hiddenTotal, setHiddenTotal] = useState(0)
   const [followMain, setFollowMain] = useState({ orders: [], acc: {} })
   const [followHidden, setFollowHidden] = useState({})
   const [loading, setLoading] = useState(true)
+  const [currentUser, setCurrentUser] = useState(null)
+
+  // 跟单
   const [showFollowForm, setShowFollowForm] = useState(false)
   const [followTarget, setFollowTarget] = useState(null)
   const [followForm, setFollowForm] = useState({ boss_id: '', gift_type: '飞机', gift_quantity: 1 })
+
+  // 隐藏任务
+  const [showHiddenForm, setShowHiddenForm] = useState(false)
+  const [hiddenForm, setHiddenForm] = useState({
+    boss_id: '',
+    title: '',
+    condition_desc: '',
+    description: '',
+    gift_type: '飞机',
+    gift_quantity: 1,
+  })
+
   const [submitting, setSubmitting] = useState(false)
   const [completing, setCompleting] = useState(false)
 
   useEffect(() => {
+    const u = getCurrentUser()
+    setCurrentUser(u)
     fetchAll()
   }, [id])
 
@@ -35,12 +56,24 @@ export default function ChallengeDetail() {
     try {
       const c = await getChallenge(id)
       setChallenge(c)
+      const user = getCurrentUser()
 
       let hiddens = []
+      let totalHidden = 0
       if (c.parent_challenge_id == null) {
         const all = await listChallenges()
-        hiddens = all.filter(h => h.parent_challenge_id === c.id)
+        const allH = all.filter(h => h.parent_challenge_id === c.id)
+        totalHidden = allH.length
+
+        // 隐藏任务可见性：只有主任务创建者 或 隐藏任务自己创建者 能看到
+        hiddens = allH.filter(h => {
+          if (!user) return false
+          if (h.created_by === user.id) return true
+          if (c.created_by === user.id) return true
+          return false
+        })
         setHiddenList(hiddens)
+        setHiddenTotal(totalHidden)
       }
 
       const fm = await aggregateFollowOrders(c.id)
@@ -70,6 +103,19 @@ export default function ChallengeDetail() {
     }
   }
 
+  // 是否主任务创建者
+  const isMainCreator = currentUser && challenge && challenge.created_by === currentUser.id
+
+  // 跟单权限检查
+  async function checkPerm() {
+    const perm = await checkCurrentUserPermission()
+    if (!perm.allowed) {
+      alert(perm.message)
+      return false
+    }
+    return true
+  }
+
   function openFollowForm(c) {
     setFollowTarget(c)
     setShowFollowForm(true)
@@ -88,11 +134,13 @@ export default function ChallengeDetail() {
     }
     setSubmitting(true)
     try {
+      const user = getCurrentUser()
       await createFollowOrder({
         challenge_id: followTarget.id,
         boss_id: followForm.boss_id.trim(),
         gift_type: followForm.gift_type,
         gift_quantity: parseInt(followForm.gift_quantity),
+        created_by: user?.id || null,
       })
       alert('跟单成功！')
       setShowFollowForm(false)
@@ -100,6 +148,59 @@ export default function ChallengeDetail() {
     } catch (e) {
       console.error(e)
       alert('跟单失败：' + e.message)
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  function openHiddenForm() {
+    setShowHiddenForm(true)
+    setHiddenForm({
+      boss_id: '',
+      title: '',
+      condition_desc: '',
+      description: '',
+      gift_type: '飞机',
+      gift_quantity: 1,
+    })
+  }
+
+  async function submitHidden(e) {
+    e.preventDefault()
+    if (!hiddenForm.boss_id.trim()) {
+      alert('请输入老板ID')
+      return
+    }
+    if (!hiddenForm.title.trim()) {
+      alert('请填写任务标题')
+      return
+    }
+    const qty = parseInt(hiddenForm.gift_quantity)
+    if (!qty || qty <= 0) {
+      alert('数量必须为正整数')
+      return
+    }
+    setSubmitting(true)
+    try {
+      const user = getCurrentUser()
+      await createChallenge({
+        boss_id: hiddenForm.boss_id.trim(),
+        title: hiddenForm.title.trim(),
+        description: hiddenForm.description.trim() || null,
+        condition_desc: hiddenForm.condition_desc.trim() || null,
+        gift_type: hiddenForm.gift_type,
+        gift_quantity: qty,
+        is_hidden: true,
+        parent_challenge_id: challenge.id,
+        created_by: user?.id || null,
+        status: 'active',
+      })
+      alert('隐藏任务添加成功！')
+      setShowHiddenForm(false)
+      await fetchAll()
+    } catch (e) {
+      console.error(e)
+      alert('添加失败：' + e.message)
     } finally {
       setSubmitting(false)
     }
@@ -118,6 +219,24 @@ export default function ChallengeDetail() {
     }
   }
 
+  // 包装函数：跟单按钮先检查权限
+  async function handleFollowClick(c) {
+    if (!currentUser) {
+      alert('请先登录后再操作')
+      return
+    }
+    if (await checkPerm()) openFollowForm(c)
+  }
+
+  // 包装函数：添加隐藏任务按钮先检查权限
+  async function handleAddHiddenClick() {
+    if (!currentUser) {
+      alert('请先登录后再发布隐藏任务')
+      return
+    }
+    if (await checkPerm()) openHiddenForm()
+  }
+
   if (loading) {
     return <Layout><div className="cd-loading">加载中...</div></Layout>
   }
@@ -125,7 +244,7 @@ export default function ChallengeDetail() {
     return <Layout><div className="cd-loading">任务不存在</div></Layout>
   }
 
-  const hiddens = challenge.parent_challenge_id == null ? hiddenList : []
+  const isMain = challenge.parent_challenge_id == null
 
   return (
     <Layout>
@@ -135,14 +254,14 @@ export default function ChallengeDetail() {
         <div className="cd-main-card">
           <div className="cd-main-card-border"></div>
           <div className="cd-status-tag">
-            {challenge.status === 'active' ? '主任务 · 进行中' : challenge.status === 'completed' ? '已完成' : '已取消'}
+            {challenge.status === 'active' ? (isMain ? '主任务 · 进行中' : '隐藏任务 · 进行中') : challenge.status === 'completed' ? '已完成' : '已取消'}
           </div>
 
           <div className="cd-boss-row">
             <div className="cd-boss-avatar">{challenge.boss_id?.charAt(0) || '?'}</div>
             <div>
               <div className="cd-boss-name">{challenge.boss_id}</div>
-              <div className="cd-boss-label">发布老板</div>
+              <div className="cd-boss-label">{isMain ? '发布老板' : '隐藏任务老板'}</div>
             </div>
           </div>
 
@@ -183,10 +302,18 @@ export default function ChallengeDetail() {
           )}
 
           <div className="cd-actions">
-            <button className="cd-follow-btn" onClick={() => openFollowForm(challenge)}>
+            <button className="cd-follow-btn" onClick={() => handleFollowClick(challenge)}>
               + 跟单
             </button>
-            {challenge.status === 'active' && (
+            {isMain && challenge.status === 'active' && currentUser && (
+              <button
+                className="cd-add-hidden-btn-action"
+                onClick={handleAddHiddenClick}
+              >
+                🎁 + 隐藏任务
+              </button>
+            )}
+            {isMain && isMainCreator && challenge.status === 'active' && (
               <button
                 className="cd-complete-btn"
                 onClick={handleComplete}
@@ -198,44 +325,56 @@ export default function ChallengeDetail() {
           </div>
         </div>
 
-        {hiddens.length > 0 && (
+        {/* 隐藏任务区 - 只在主任务详情页 + 用户已登录 + 是相关创建者时显示 */}
+        {isMain && currentUser && (isMainCreator || hiddenList.length > 0) && (
           <div className="cd-hidden-section">
-            <div className="cd-section-title">🎁 隐藏任务 ({hiddens.length})</div>
-            {hiddens.map(h => {
-              const fh = followHidden[h.id] || { orders: [], acc: {} }
-              return (
-                <div key={h.id} className="cd-hidden-card">
-                  <div className="cd-hidden-card-border"></div>
-                  <div className="cd-hidden-status">隐藏任务</div>
-                  <div className="cd-boss-row small">
-                    <div className="cd-boss-avatar small">{h.boss_id?.charAt(0) || '?'}</div>
-                    <div>
-                      <div className="cd-boss-name">{h.boss_id}</div>
-                      <div className="cd-boss-label">老板</div>
+            <div className="cd-section-title">
+              🎁 隐藏任务 ({isMainCreator ? hiddenTotal : hiddenList.length})
+            </div>
+            {hiddenList.length === 0 ? (
+              <div className="cd-hidden-empty">
+                {isMainCreator
+                  ? '还没有隐藏任务，点上方「🎁 + 隐藏任务」来创建一个'
+                  : '该任务的隐藏任务对其他用户不可见'}
+              </div>
+            ) : (
+              hiddenList.map(h => {
+                const fh = followHidden[h.id] || { orders: [], acc: {} }
+                return (
+                  <div key={h.id} className="cd-hidden-card">
+                    <div className="cd-hidden-card-border"></div>
+                    <div className="cd-hidden-status">隐藏任务</div>
+                    <div className="cd-boss-row small">
+                      <div className="cd-boss-avatar small">{h.boss_id?.charAt(0) || '?'}</div>
+                      <div>
+                        <div className="cd-boss-name">{h.boss_id}</div>
+                        <div className="cd-boss-label">老板</div>
+                      </div>
                     </div>
-                  </div>
-                  <h3 className="cd-hidden-title">{h.title}</h3>
-                  {h.condition_desc && <div className="cd-hidden-condition">条件：{h.condition_desc}</div>}
-                  {h.description && <p className="cd-hidden-desc">{h.description}</p>}
+                    <h3 className="cd-hidden-title">{h.title}</h3>
+                    {h.condition_desc && <div className="cd-hidden-condition">条件：{h.condition_desc}</div>}
+                    {h.description && <p className="cd-hidden-desc">{h.description}</p>}
 
-                  <div className="cd-gift-box small">
-                    <div className="cd-gift-display">
-                      <span className="cd-gift-icon-big">{GIFT_ICONS[h.gift_type]}</span>
-                      <span className="cd-gift-name">{h.gift_type}</span>
-                      <span className="cd-gift-x">x</span>
-                      <span className="cd-gift-total">{h.gift_quantity + (fh.acc[h.gift_type] || 0)}</span>
+                    <div className="cd-gift-box small">
+                      <div className="cd-gift-display">
+                        <span className="cd-gift-icon-big">{GIFT_ICONS[h.gift_type]}</span>
+                        <span className="cd-gift-name">{h.gift_type}</span>
+                        <span className="cd-gift-x">x</span>
+                        <span className="cd-gift-total">{h.gift_quantity + (fh.acc[h.gift_type] || 0)}</span>
+                      </div>
                     </div>
-                  </div>
 
-                  <button className="cd-follow-btn small" onClick={() => openFollowForm(h)}>
-                    + 跟单
-                  </button>
-                </div>
-              )
-            })}
+                    <button className="cd-follow-btn small" onClick={() => handleFollowClick(h)}>
+                      + 跟单
+                    </button>
+                  </div>
+                )
+              })
+            )}
           </div>
         )}
 
+        {/* 跟单表单 */}
         {showFollowForm && (
           <div className="cd-modal-overlay" onClick={() => setShowFollowForm(false)}>
             <div className="cd-modal" onClick={e => e.stopPropagation()}>
@@ -282,6 +421,94 @@ export default function ChallengeDetail() {
                   </button>
                   <button type="submit" className="cd-btn-primary" disabled={submitting}>
                     {submitting ? '提交中...' : '确认跟单'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* 添加隐藏任务表单 */}
+        {showHiddenForm && (
+          <div className="cd-modal-overlay" onClick={() => setShowHiddenForm(false)}>
+            <div className="cd-modal large" onClick={e => e.stopPropagation()}>
+              <div className="cd-modal-title">🎁 添加隐藏任务</div>
+              <div className="cd-modal-subtitle">关联到：{challenge.title}</div>
+              <form onSubmit={submitHidden} className="cd-form">
+                <label className="cd-form-label">
+                  老板ID / 昵称 <span className="required">*</span>
+                  <input
+                    className="cd-form-input"
+                    type="text"
+                    value={hiddenForm.boss_id}
+                    onChange={e => setHiddenForm({ ...hiddenForm, boss_id: e.target.value })}
+                    placeholder="如：隐藏老板A"
+                    required
+                  />
+                </label>
+                <label className="cd-form-label">
+                  任务标题 <span className="required">*</span>
+                  <input
+                    className="cd-form-input"
+                    type="text"
+                    value={hiddenForm.title}
+                    onChange={e => setHiddenForm({ ...hiddenForm, title: e.target.value })}
+                    placeholder="如：第二名也有奖"
+                    required
+                  />
+                </label>
+                <label className="cd-form-label">
+                  任务条件
+                  <input
+                    className="cd-form-input"
+                    type="text"
+                    value={hiddenForm.condition_desc}
+                    onChange={e => setHiddenForm({ ...hiddenForm, condition_desc: e.target.value })}
+                    placeholder="如：第二名"
+                  />
+                </label>
+                <label className="cd-form-label">
+                  详细描述
+                  <textarea
+                    className="cd-form-input"
+                    value={hiddenForm.description}
+                    onChange={e => setHiddenForm({ ...hiddenForm, description: e.target.value })}
+                    rows="2"
+                    placeholder="补充说明..."
+                  />
+                </label>
+                <div className="cd-form-row">
+                  <label className="cd-form-label">
+                    礼物类型
+                    <select
+                      className="cd-form-input"
+                      value={hiddenForm.gift_type}
+                      onChange={e => setHiddenForm({ ...hiddenForm, gift_type: e.target.value })}
+                    >
+                      {GIFT_TYPES.map(t => (
+                        <option key={t} value={t}>{GIFT_ICONS[t]} {t}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="cd-form-label">
+                    数量
+                    <input
+                      className="cd-form-input"
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={hiddenForm.gift_quantity}
+                      onChange={e => setHiddenForm({ ...hiddenForm, gift_quantity: e.target.value })}
+                      required
+                    />
+                  </label>
+                </div>
+                <div className="cd-form-actions">
+                  <button type="button" className="cd-btn-secondary" onClick={() => setShowHiddenForm(false)}>
+                    取消
+                  </button>
+                  <button type="submit" className="cd-btn-primary" disabled={submitting}>
+                    {submitting ? '添加中...' : '🎁 添加隐藏任务'}
                   </button>
                 </div>
               </form>

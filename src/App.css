@@ -111,6 +111,73 @@ button {
   letter-spacing: 0.1em;
 }
 
+/* 用户信息 */
+.brand-user {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 215, 0, 0.1);
+  border: 1px solid #FFD700;
+  padding: 4px 4px 4px 12px;
+  border-radius: 4px;
+}
+
+.brand-user-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  line-height: 1.2;
+}
+
+.brand-user-nick {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #FFD700;
+}
+
+.brand-user-lv {
+  color: #FFC700;
+  font-size: 0.7rem;
+  font-weight: 700;
+  margin-left: 4px;
+}
+
+.brand-user-banned {
+  font-size: 0.65rem;
+  color: #ff5050;
+  background: rgba(230, 0, 18, 0.2);
+  padding: 1px 6px;
+  border-radius: 2px;
+}
+
+.brand-login-btn,
+.brand-switch-btn,
+.brand-logout-btn {
+  background: #FFD700;
+  color: #0a0a0a;
+  border: none;
+  padding: 6px 12px;
+  font-weight: 700;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.brand-switch-btn,
+.brand-logout-btn {
+  background: #0a0a0a;
+  color: #FFD700;
+  border: 1px solid #FFD700;
+  padding: 4px 8px;
+  font-size: 0.75rem;
+}
+
+.brand-logout-btn {
+  color: #aaa;
+  border-color: #555;
+}
+
 .season-dot {
   width: 8px;
   height: 8px;

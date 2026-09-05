@@ -4,6 +4,8 @@ import Layout from '../components/Layout'
 import {
   listChallenges,
   createChallenge,
+  getCurrentUser,
+  checkCurrentUserPermission,
   GIFT_TYPES,
   GIFT_ICONS,
 } from '../lib/api'
@@ -26,8 +28,16 @@ export default function PublishPage() {
   const [form, setForm] = useState(emptyForm)
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState(false)
+  const [currentUser, setCurrentUser] = useState(null)
 
   useEffect(() => {
+    const u = getCurrentUser()
+    setCurrentUser(u)
+    if (!u) {
+      alert('请先登录后再发布任务')
+      navigate('/')
+      return
+    }
     fetchOptions()
   }, [])
 
@@ -61,8 +71,16 @@ export default function PublishPage() {
       return
     }
 
+    // 权限检查
+    const perm = await checkCurrentUserPermission()
+    if (!perm.allowed) {
+      alert(perm.message)
+      return
+    }
+
     setSubmitting(true)
     try {
+      const user = getCurrentUser()
       const payload = {
         boss_id: form.boss_id.trim(),
         title: form.title.trim(),
@@ -72,6 +90,7 @@ export default function PublishPage() {
         gift_quantity: qty,
         is_hidden: form.is_hidden,
         parent_challenge_id: form.is_hidden ? form.parent_challenge_id : null,
+        created_by: user?.id || null,
         status: 'active',
       }
       const created = await createChallenge(payload)
@@ -106,6 +125,14 @@ export default function PublishPage() {
           <div className="publish-card-border"></div>
           <h1 className="publish-title">发布挑战</h1>
           <p className="publish-subtitle">填好下面信息，任务立刻出现在首页</p>
+
+          {currentUser && (
+            <div className="publish-current-user">
+              当前：<strong>{currentUser.douyu_nickname || currentUser.douyu_id}</strong>
+              {currentUser.douyu_level > 0 && <span className="publish-user-lv"> LV{currentUser.douyu_level}</span>}
+              {currentUser.is_blacklisted && <span className="publish-user-banned">已拉黑</span>}
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="publish-form">
             <fieldset className="publish-section">

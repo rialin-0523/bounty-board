@@ -41,6 +41,41 @@
   margin: 0 0 24px;
 }
 
+.publish-current-user {
+  background: #1a1a1a;
+  color: #FFD700;
+  padding: 8px 14px;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  margin-bottom: 20px;
+  text-align: center;
+  border: 1px solid #FFD700;
+}
+
+.publish-current-user strong {
+  font-weight: 900;
+}
+
+.publish-user-lv {
+  background: #FFD700;
+  color: #0a0a0a;
+  padding: 1px 6px;
+  border-radius: 2px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  margin-left: 4px;
+}
+
+.publish-user-banned {
+  background: #E60012;
+  color: white;
+  padding: 1px 6px;
+  border-radius: 2px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  margin-left: 4px;
+}
+
 .publish-form {
   display: flex;
   flex-direction: column;

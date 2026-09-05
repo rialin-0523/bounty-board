@@ -8,6 +8,11 @@ import {
   listFollowOrders,
   createFollowOrder,
   deleteFollowOrder,
+  listUsers,
+  blacklistUser,
+  deleteUser,
+  getSetting,
+  setSetting,
   GIFT_TYPES,
   GIFT_ICONS,
 } from './lib/api'
@@ -22,8 +27,6 @@ const emptyChallenge = {
   condition_desc: '',
   gift_type: '飞机',
   gift_quantity: 1,
-  is_hidden: false,
-  parent_challenge_id: '',
   status: 'active',
 }
 
@@ -43,6 +46,14 @@ function Admin() {
   const [followOrders, setFollowOrders] = useState([])
   const [loading, setLoading] = useState(true)
 
+  // 用户管理
+  const [users, setUsers] = useState([])
+  const [userSearch, setUserSearch] = useState('')
+
+  // 配置管理
+  const [minLevel, setMinLevel] = useState(0)
+  const [savingSetting, setSavingSetting] = useState(false)
+
   const [challengeForm, setChallengeForm] = useState(emptyChallenge)
   const [editingChallenge, setEditingChallenge] = useState(null)
   const [followForm, setFollowForm] = useState(emptyFollow)
@@ -54,14 +65,18 @@ function Admin() {
   async function fetchData() {
     setLoading(true)
     try {
-      const [cs, allC, fos] = await Promise.all([
+      const [cs, allC, fos, us, ml] = await Promise.all([
         listMainChallengesWithHidden(),
         listChallenges(),
         loadAllFollowOrders(),
+        listUsers(),
+        getSetting('min_douyu_level', 0),
       ])
       setChallenges(cs)
       setAllChallenges(allC)
       setFollowOrders(fos)
+      setUsers(us)
+      setMinLevel(ml || 0)
     } catch (e) {
       console.error(e)
       alert('加载失败：' + e.message)
@@ -80,6 +95,16 @@ function Admin() {
     return all2
   }
 
+  async function searchUsers(q) {
+    setUserSearch(q)
+    try {
+      const us = await listUsers({ search: q.trim() || null })
+      setUsers(us)
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
   function handleLogin(e) {
     e.preventDefault()
     if (password === ADMIN_PASSWORD) {
@@ -90,6 +115,7 @@ function Admin() {
     }
   }
 
+  // ====== 任务管理 ======
   async function handleChallengeSubmit(e) {
     e.preventDefault()
     if (!challengeForm.boss_id.trim()) {
@@ -100,14 +126,6 @@ function Admin() {
       alert('礼物数量必须为正整数')
       return
     }
-    if (challengeForm.is_hidden && !challengeForm.parent_challenge_id) {
-      alert('隐藏任务必须关联一个主任务')
-      return
-    }
-    if (!challengeForm.is_hidden && challengeForm.parent_challenge_id) {
-      alert('主任务不能关联其他任务')
-      return
-    }
     try {
       const payload = {
         boss_id: challengeForm.boss_id.trim(),
@@ -116,8 +134,8 @@ function Admin() {
         condition_desc: challengeForm.condition_desc || null,
         gift_type: challengeForm.gift_type,
         gift_quantity: parseInt(challengeForm.gift_quantity),
-        is_hidden: challengeForm.is_hidden,
-        parent_challenge_id: challengeForm.is_hidden ? challengeForm.parent_challenge_id : null,
+        is_hidden: false,
+        parent_challenge_id: null,
         status: challengeForm.status,
       }
       if (editingChallenge) {
@@ -136,11 +154,7 @@ function Admin() {
   }
 
   function editChallenge(c) {
-    setChallengeForm({
-      ...emptyChallenge,
-      ...c,
-      parent_challenge_id: c.parent_challenge_id || '',
-    })
+    setChallengeForm({ ...emptyChallenge, ...c })
     setEditingChallenge(c)
   }
 
@@ -154,6 +168,7 @@ function Admin() {
     }
   }
 
+  // ====== 跟单管理 ======
   async function handleFollowSubmit(e) {
     e.preventDefault()
     if (parseInt(followForm.gift_quantity) <= 0) {
@@ -189,6 +204,42 @@ function Admin() {
     }
   }
 
+  // ====== 用户管理 ======
+  async function toggleBlacklist(u) {
+    const newState = !u.is_blacklisted
+    const action = newState ? '拉黑' : '解除拉黑'
+    if (!confirm(`确定${action}用户「${u.douyu_nickname || u.douyu_id}」吗？`)) return
+    try {
+      await blacklistUser(u.id, newState)
+      await searchUsers(userSearch)
+    } catch (e) {
+      alert('操作失败：' + e.message)
+    }
+  }
+
+  async function handleDeleteUser(u) {
+    if (!confirm(`确定删除用户「${u.douyu_nickname || u.douyu_id}」吗？此操作不可恢复！`)) return
+    try {
+      await deleteUser(u.id)
+      await searchUsers(userSearch)
+    } catch (e) {
+      alert('删除失败：' + e.message)
+    }
+  }
+
+  // ====== 配置管理 ======
+  async function saveMinLevel() {
+    setSavingSetting(true)
+    try {
+      await setSetting('min_douyu_level', parseInt(minLevel) || 0)
+      alert('已保存')
+    } catch (e) {
+      alert('保存失败：' + e.message)
+    } finally {
+      setSavingSetting(false)
+    }
+  }
+
   if (!authenticated) {
     return (
       <div className="admin-login">
@@ -217,54 +268,40 @@ function Admin() {
         <button className={`admin-tab ${activeTab === 'follows' ? 'active' : ''}`} onClick={() => setActiveTab('follows')}>
           跟单管理 ({followOrders.length})
         </button>
+        <button className={`admin-tab ${activeTab === 'users' ? 'active' : ''}`} onClick={() => setActiveTab('users')}>
+          用户管理 ({users.length})
+        </button>
+        <button className={`admin-tab ${activeTab === 'settings' ? 'active' : ''}`} onClick={() => setActiveTab('settings')}>
+          配置管理
+        </button>
       </div>
 
       {activeTab === 'challenges' && (
         <div className="admin-panel">
           <form className="admin-form" onSubmit={handleChallengeSubmit}>
-            <h3>{editingChallenge ? '编辑任务' : '新建任务'}</h3>
+            <h3>{editingChallenge ? '编辑任务' : '新建主任务'}</h3>
+            <p style={{ color: '#888', fontSize: '0.8rem', marginTop: -8 }}>
+              提示：隐藏任务请到对应主任务详情页添加
+            </p>
             <label>老板ID / 昵称 <span style={{ color: '#FFD700' }}>*</span>
               <input value={challengeForm.boss_id} onChange={e => setChallengeForm({ ...challengeForm, boss_id: e.target.value })} required />
             </label>
-            <div className="admin-form-row">
-              <label>任务类型
-                <select value={challengeForm.is_hidden ? 'hidden' : 'main'} onChange={e => setChallengeForm({ ...challengeForm, is_hidden: e.target.value === 'hidden' })}>
-                  <option value="main">主任务</option>
-                  <option value="hidden">隐藏任务</option>
-                </select>
-              </label>
-              <label>状态
-                <select value={challengeForm.status} onChange={e => setChallengeForm({ ...challengeForm, status: e.target.value })}>
-                  <option value="active">进行中</option>
-                  <option value="completed">已完成</option>
-                  <option value="cancelled">已取消</option>
-                </select>
-              </label>
-            </div>
-
-            {challengeForm.is_hidden && (
-              <label>关联主任务
-                <select value={challengeForm.parent_challenge_id} onChange={e => setChallengeForm({ ...challengeForm, parent_challenge_id: e.target.value })} required>
-                  <option value="">-- 选择主任务 --</option>
-                  {allChallenges.filter(c => c.parent_challenge_id == null && c.id !== editingChallenge?.id).map(c => (
-                    <option key={c.id} value={c.id}>{c.title}</option>
-                  ))}
-                </select>
-              </label>
-            )}
-
+            <label>状态
+              <select value={challengeForm.status} onChange={e => setChallengeForm({ ...challengeForm, status: e.target.value })}>
+                <option value="active">进行中</option>
+                <option value="completed">已完成</option>
+                <option value="cancelled">已取消</option>
+              </select>
+            </label>
             <label>标题
               <input value={challengeForm.title} onChange={e => setChallengeForm({ ...challengeForm, title: e.target.value })} required />
             </label>
-
             <label>任务条件
               <input value={challengeForm.condition_desc || ''} onChange={e => setChallengeForm({ ...challengeForm, condition_desc: e.target.value })} placeholder="如：套圈数量最多者" />
             </label>
-
             <label>详细描述
               <textarea value={challengeForm.description || ''} onChange={e => setChallengeForm({ ...challengeForm, description: e.target.value })} rows="3" />
             </label>
-
             <div className="admin-form-row">
               <label>礼物类型
                 <select value={challengeForm.gift_type} onChange={e => setChallengeForm({ ...challengeForm, gift_type: e.target.value })}>
@@ -275,7 +312,6 @@ function Admin() {
                 <input type="number" min="1" step="1" value={challengeForm.gift_quantity} onChange={e => setChallengeForm({ ...challengeForm, gift_quantity: e.target.value })} required />
               </label>
             </div>
-
             <div className="admin-form-actions">
               <button type="submit" className="admin-btn-primary">{editingChallenge ? '保存' : '创建'}</button>
               {editingChallenge && <button type="button" className="admin-btn-secondary" onClick={() => { setChallengeForm(emptyChallenge); setEditingChallenge(null) }}>取消</button>}
@@ -391,6 +427,100 @@ function Admin() {
                 </tbody>
               </table>
             )}
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'users' && (
+        <div className="admin-panel">
+          <div className="admin-form">
+            <h3>用户管理</h3>
+            <p style={{ color: '#888', fontSize: '0.85rem', marginTop: -8, marginBottom: 16 }}>
+              支持按斗鱼ID 或 昵称模糊搜索
+            </p>
+            <input
+              type="text"
+              placeholder="搜索斗鱼ID 或 昵称..."
+              value={userSearch}
+              onChange={e => searchUsers(e.target.value)}
+            />
+          </div>
+
+          <div className="admin-list">
+            <h3>用户列表 ({users.length})</h3>
+            {users.length === 0 ? <div className="admin-empty">暂无用户</div> : (
+              <table>
+                <thead>
+                  <tr>
+                    <th>斗鱼ID</th><th>昵称</th><th>等级</th><th>状态</th><th>最后登录</th><th>操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {users.map(u => (
+                    <tr key={u.id} className={u.is_blacklisted ? 'admin-row-banned' : ''}>
+                      <td>{u.douyu_id}</td>
+                      <td>{u.douyu_nickname || '-'}</td>
+                      <td>LV{u.douyu_level || 0}</td>
+                      <td>
+                        {u.is_blacklisted ? (
+                          <span style={{ color: '#ff5050', fontWeight: 700 }}>🚫 已拉黑</span>
+                        ) : (
+                          <span style={{ color: '#00C853' }}>✓ 正常</span>
+                        )}
+                      </td>
+                      <td>{u.last_login_at ? new Date(u.last_login_at).toLocaleString('zh-CN') : '-'}</td>
+                      <td>
+                        <button
+                          onClick={() => toggleBlacklist(u)}
+                          className={u.is_blacklisted ? '' : 'admin-btn-danger'}
+                        >
+                          {u.is_blacklisted ? '解除拉黑' : '拉黑'}
+                        </button>
+                        <button className="admin-btn-danger" onClick={() => handleDeleteUser(u)}>删除</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'settings' && (
+        <div className="admin-panel">
+          <div className="admin-form">
+            <h3>配置管理</h3>
+            <p style={{ color: '#888', fontSize: '0.85rem', marginTop: -8, marginBottom: 16 }}>
+              限制斗鱼等级低于该值的用户进行跟单、下单、发布隐藏任务等操作
+            </p>
+            <label>最低斗鱼等级（小于该等级的用户将被拦截）
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 4 }}>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={minLevel}
+                  onChange={e => setMinLevel(e.target.value)}
+                  style={{ flex: 1 }}
+                />
+                <button
+                  type="button"
+                  className="admin-btn-primary"
+                  onClick={saveMinLevel}
+                  disabled={savingSetting}
+                >
+                  {savingSetting ? '保存中...' : '保存'}
+                </button>
+              </div>
+            </label>
+            <p style={{ color: '#FFD700', fontSize: '0.85rem', marginTop: 12 }}>
+              💡 当前最低等级：<strong>LV{minLevel}</strong>。低于此等级的用户在点击「发布挑战」/「跟单」/「添加隐藏任务」时会看到提示：
+              <br/>
+              <code style={{ background: '#0a0a0a', padding: '2px 6px', borderRadius: 2, marginTop: 4, display: 'inline-block' }}>
+                斗鱼等级不足（{minLevel}级），暂时无法发布任务～
+              </code>
+            </p>
           </div>
         </div>
       )}
