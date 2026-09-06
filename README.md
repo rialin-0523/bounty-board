@@ -140,7 +140,19 @@ node --check server/auth.mjs
 
 当前部署口径是：GitHub 仓库保留前端源码与构建流程，服务器只托管构建后的前端文件和 Node 后端。
 
-> 说明：`xd.miyang.cloud` 目前已能通过 HTTP 打开；HTTPS 证书申请在当前服务器上遇到 Let's Encrypt 校验超时，后续补到 HTTPS 后再把同域访问切回完全加密。
+> 说明：`xd.miyang.cloud` 已在服务器上通过 DNSPod DNS-01 签发 Let's Encrypt 证书，并配置为 HTTPS-only；`http://xd.miyang.cloud/` 当前直接拒绝连接，不再提供明文 HTTP 页面。
+
+
+### 生产 HTTPS 状态
+
+- 证书域名：`xd.miyang.cloud`
+- 证书路径：`/etc/letsencrypt/live/xd.miyang.cloud/fullchain.pem`
+- 私钥路径：`/etc/letsencrypt/live/xd.miyang.cloud/privkey.pem`
+- 到期时间：2026-12-05
+- 签发方式：Let's Encrypt + certbot manual DNS-01 + DNSPod API hook。
+- Nginx 配置：`/etc/nginx/conf.d/xd.miyang.cloud.conf`。
+- 当前策略：HTTPS 正常访问；HTTP 域名访问返回空连接；HTTPS IP 直连走默认拒绝站点，不提供悬赏令页面。
+- 续期提醒：DNSPod Token 只登记在全局敏感信息文档和服务器 hook 文件中，不能提交到 GitHub。
 
 ## 常见问题
 
