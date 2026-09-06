@@ -55,7 +55,7 @@ npm run server
 npm run dev
 ```
 
-生产部署默认前台地址：`https://xd.miyang.cloud/`，后台地址：`https://xd.miyang.cloud/xiaoyangadmin/`。当前服务器已完成 HTTPS：证书位于 `/etc/letsencrypt/live/xd.miyang.cloud/`，到期时间 2026-12-05；签发方式为 certbot manual DNS-01 + DNSPod API hook。HTTP 域名访问返回空连接，不再提供明文页面。
+生产部署默认前台地址：`https://xd.miyang.cloud/`，后台地址：`https://xd.miyang.cloud/xiaoyangadmin/`。当前服务器已完成 HTTPS：证书位于 `/etc/letsencrypt/live/xd.miyang.cloud/`，到期时间 2026-12-05；签发方式为 certbot manual DNS-01 + DNSPod API hook。HTTP 域名访问返回空连接，不再提供明文页面。发布页的老板信息会自动读取登录用户，不再手动输入；前端顶部也不再显示后台管理入口。
 
 ## 5. 修改后要检查的文件
 

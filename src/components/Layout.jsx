@@ -28,12 +28,6 @@ export default function Layout({ children }) {
           >
             绑定斗鱼
           </Link>
-          <Link
-            to="/xiaoyangadmin"
-            className={`brand-action secondary ${location.pathname === '/xiaoyangadmin' ? 'active' : ''}`}
-          >
-            后台管理
-          </Link>
           {user ? (
             <>
               <div className="brand-account">

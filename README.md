@@ -118,10 +118,11 @@ node --check server/auth.mjs
 2. 点击生成识别码。
 3. 用斗鱼账号到指定直播间发送该识别码。
 4. 管理员如需补数据或修错，可在后台通过接口手动修正斗鱼资料。
-5. 页面出现斗鱼 UID、昵称、头像、等级、粉丝牌（头像仅以小缩略图显示）。
-6. 输入用户名和两次密码。
-7. 完成绑定并跳回首页。
-8. Supabase 检查：
+5. 发布挑战页的“老板信息”会自动读取当前登录用户信息，不再手动输入。
+6. 页面出现斗鱼 UID、昵称、头像、等级、粉丝牌（头像仅以小缩略图显示）。
+7. 输入用户名和两次密码。
+8. 完成绑定并跳回首页。
+9. Supabase 检查：
    - `bind_sessions` 有 matched/completed 记录。
    - `users` 有用户记录，且 `douyu_uid` 不为空。
    - `auth_sessions` 有登录会话记录。
@@ -134,7 +135,7 @@ node --check server/auth.mjs
 推荐：
 
 - 前台域名：`https://xd.miyang.cloud/`，静态资源可以直接放 GitHub 仓库并同步到服务器发布目录。
-- 后台路由：`https://xd.miyang.cloud/xiaoyangadmin/`。
+- 前端顶部不再提供后台管理入口；后台仍可通过直接地址访问。
 - 后端：一台能常驻运行 Node 的服务器。
 - 生产：前台和 `/api` 最好同域反向代理，方便 httpOnly Cookie 稳定生效。
 

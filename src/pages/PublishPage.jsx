@@ -12,7 +12,6 @@ import {
 import './PublishPage.css'
 
 const emptyForm = {
-  boss_id: '',
   title: '',
   condition_desc: '',
   description: '',
@@ -27,6 +26,7 @@ export default function PublishPage() {
   const { user: currentUser } = useAuth()
   const [mainChallenges, setMainChallenges] = useState([])
   const [form, setForm] = useState(emptyForm)
+  const bossLabel = currentUser?.username || currentUser?.douyu_nickname || currentUser?.douyu_id || ''
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState(false)
   const [permission, setPermission] = useState({ loading: true, allowed: false, message: '' })
@@ -79,8 +79,8 @@ export default function PublishPage() {
       alert(permission.message || '当前账号暂时无法发布任务')
       return
     }
-    if (!form.boss_id.trim()) {
-      alert('请填写老板ID（昵称）')
+    if (!bossLabel.trim()) {
+      alert('登录后未获取到用户信息，请重新登录')
       return
     }
     if (!form.title.trim()) {
@@ -100,7 +100,7 @@ export default function PublishPage() {
     setSubmitting(true)
     try {
       const payload = {
-        boss_id: form.boss_id.trim(),
+        boss_id: bossLabel.trim(),
         title: form.title.trim(),
         description: form.description.trim() || null,
         condition_desc: form.condition_desc.trim() || null,
@@ -163,15 +163,14 @@ export default function PublishPage() {
           <form onSubmit={handleSubmit} className="publish-form">
             <fieldset className="publish-section">
               <legend>🏷️ 老板信息</legend>
-              <label>
-                老板ID / 昵称 <span className="required">*</span>
-                <input
-                  value={form.boss_id}
-                  onChange={e => setForm({ ...form, boss_id: e.target.value })}
-                  placeholder="输入你的ID或昵称（全局唯一）"
-                  required
-                />
-              </label>
+              <div className="publish-current-user publish-current-user--fixed">
+                <div>
+                  当前登录用户：<strong>{bossLabel || '未获取到信息'}</strong>
+                </div>
+                <div className="publish-current-user-sub">
+                  系统会自动使用登录账号信息，不支持手动输入
+                </div>
+              </div>
             </fieldset>
 
             <fieldset className="publish-section">
