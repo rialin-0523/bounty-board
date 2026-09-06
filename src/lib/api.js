@@ -1,62 +1,76 @@
 import { supabase } from './supabase'
 
+async function requestJson(path, options = {}) {
+  const response = await fetch(path, {
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(options.headers || {}),
+    },
+    ...options,
+  })
+  const data = await response.json().catch(() => null)
+  if (!response.ok || (data && data.ok === false)) {
+    throw new Error(data?.reason || `请求失败：${response.status}`)
+  }
+  return data
+}
+
+function normalizeUserRow(row) {
+  if (!row) return null
+  return {
+    ...row,
+    douyu_id: row.douyu_id || row.douyu_uid || '',
+    douyu_uid: row.douyu_uid || row.douyu_id || '',
+    douyu_nickname: row.douyu_nickname || row.douyu_name || '',
+    douyu_name: row.douyu_name || row.douyu_nickname || '',
+    douyu_avatar: row.douyu_avatar || '',
+    douyu_level: row.douyu_level ?? 0,
+    douyu_badge_name: row.douyu_badge_name || '',
+    douyu_badge_level: row.douyu_badge_level ?? 0,
+    is_blacklisted: Boolean(row.is_blacklisted),
+    username: row.username || '',
+    username_normalized: row.username_normalized || '',
+    bind_session_id: row.bind_session_id || null,
+    last_login_at: row.last_login_at || null,
+    created_at: row.created_at || null,
+    updated_at: row.updated_at || null,
+  }
+}
+
 // =========================================================
-// 用户（Users）- 斗鱼用户
+// 用户（Users）- 斗鱼用户 + 站内账号
 // =========================================================
 export async function listUsers({ search = null } = {}) {
   let q = supabase.from('users').select('*').order('created_at', { ascending: false })
   if (search) {
-    q = q.or(`douyu_id.ilike.%${search}%,douyu_nickname.ilike.%${search}%`)
+    q = q.or(`douyu_uid.ilike.%${search}%,douyu_nickname.ilike.%${search}%,username.ilike.%${search}%`)
   }
   const { data, error } = await q
   if (error) throw error
-  return data || []
+  return (data || []).map(normalizeUserRow)
 }
 
 export async function getUser(id) {
   const { data, error } = await supabase.from('users').select('*').eq('id', id).single()
   if (error) throw error
-  return data
+  return normalizeUserRow(data)
 }
 
 export async function getUserByDouyuId(douyuId) {
   const { data, error } = await supabase
     .from('users')
     .select('*')
-    .eq('douyu_id', douyuId)
+    .eq('douyu_uid', douyuId)
     .maybeSingle()
   if (error) throw error
-  return data
-}
-
-// 根据斗鱼ID 获取或创建用户（登录用）
-export async function getOrCreateUser(douyuId, nickname = null) {
-  if (!douyuId) throw new Error('斗鱼ID 不能为空')
-  const existing = await getUserByDouyuId(douyuId)
-  if (existing) {
-    // 更新 last_login_at
-    await supabase.from('users').update({ last_login_at: new Date().toISOString() }).eq('id', existing.id)
-    return existing
-  }
-  const { data, error } = await supabase
-    .from('users')
-    .insert({
-      douyu_id: douyuId,
-      douyu_nickname: nickname || douyuId,
-      douyu_level: 0,
-      is_blacklisted: false,
-      last_login_at: new Date().toISOString(),
-    })
-    .select()
-    .single()
-  if (error) throw error
-  return data
+  return normalizeUserRow(data)
 }
 
 export async function updateUser(id, payload) {
   const { data, error } = await supabase.from('users').update(payload).eq('id', id).select().single()
   if (error) throw error
-  return data
+  return normalizeUserRow(data)
 }
 
 export async function blacklistUser(id, isBlacklisted) {
@@ -68,6 +82,51 @@ export async function deleteUser(id) {
   if (error) throw error
 }
 
+export async function saveDouyuUserProfile(payload, adminAuth = {}) {
+  const body = {
+    id: payload.id || null,
+    douyu_uid: String(payload.douyu_uid || '').trim(),
+    douyu_nickname: String(payload.douyu_nickname || '').trim(),
+    douyu_avatar: String(payload.douyu_avatar || '').trim(),
+    douyu_level: Number(payload.douyu_level || 0) || 0,
+    douyu_badge_name: String(payload.douyu_badge_name || '').trim(),
+    douyu_badge_level: Number(payload.douyu_badge_level || 0) || 0,
+    adminUsername: String(adminAuth.adminUsername || '').trim(),
+    adminPassword: String(adminAuth.adminPassword || ''),
+  }
+  if (!body.douyu_uid) throw new Error('斗鱼 UID 不能为空')
+  if (!body.douyu_nickname) throw new Error('斗鱼昵称不能为空')
+  if (!body.adminUsername || !body.adminPassword) throw new Error('管理员账号未登录，无法保存')
+  const data = await requestJson('/api/admin/users/douyu-profile', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+  return normalizeUserRow(data.user)
+}
+
+// 根据斗鱼ID 获取或创建用户（兼容旧逻辑，可用于简单登录）
+export async function getOrCreateUser(douyuId, nickname = null) {
+  if (!douyuId) throw new Error('斗鱼ID 不能为空')
+  const existing = await getUserByDouyuId(douyuId)
+  if (existing) {
+    await supabase.from('users').update({ last_login_at: new Date().toISOString() }).eq('id', existing.id)
+    return existing
+  }
+  const { data, error } = await supabase
+    .from('users')
+    .insert({
+      douyu_uid: douyuId,
+      douyu_nickname: nickname || douyuId,
+      douyu_level: 0,
+      is_blacklisted: false,
+      last_login_at: new Date().toISOString(),
+    })
+    .select()
+    .single()
+  if (error) throw error
+  return normalizeUserRow(data)
+}
+
 // =========================================================
 // 配置（Settings）
 // =========================================================
@@ -75,10 +134,8 @@ export async function getSetting(key, defaultValue = null) {
   const { data, error } = await supabase.from('settings').select('*').eq('key', key).maybeSingle()
   if (error) throw error
   if (!data) return defaultValue
-  // 尝试解析为数字
-  if (!isNaN(data.value) && data.value !== '' && data.value !== null) {
-    return Number(data.value)
-  }
+  if (data.value == null || data.value === '') return defaultValue
+  if (!Number.isNaN(Number(data.value))) return Number(data.value)
   return data.value
 }
 
@@ -90,48 +147,29 @@ export async function setSetting(key, value) {
 }
 
 export async function listSettings() {
-  const { data, error } = await supabase.from('settings').select('*')
+  const { data, error } = await supabase.from('settings').select('*').order('key', { ascending: true })
   if (error) throw error
   return data || []
 }
 
+export async function upsertSetting(payload) {
+  const { data, error } = await supabase.from('settings').upsert(payload).select().single()
+  if (error) throw error
+  return data
+}
+
 // =========================================================
-// 当前用户（localStorage 管理）
+// 当前用户（由服务器 session 维护，这里仅提供权限判断工具）
 // =========================================================
-const CURRENT_USER_KEY = 'bounty_board_current_user'
-
-export function getCurrentUser() {
-  try {
-    const raw = localStorage.getItem(CURRENT_USER_KEY)
-    return raw ? JSON.parse(raw) : null
-  } catch (e) {
-    return null
-  }
-}
-
-export function setCurrentUser(user) {
-  if (user) {
-    localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user))
-  } else {
-    localStorage.removeItem(CURRENT_USER_KEY)
-  }
-}
-
-export function clearCurrentUser() {
-  localStorage.removeItem(CURRENT_USER_KEY)
-}
-
-// 检查当前用户是否有权操作（黑名单 + 等级）
-export async function checkCurrentUserPermission() {
-  const user = getCurrentUser()
-  if (!user) {
+export async function checkCurrentUserPermission(currentUser) {
+  if (!currentUser?.id) {
     return { allowed: false, reason: 'not_logged_in', message: '请先登录' }
   }
-  if (user.is_blacklisted) {
+  if (currentUser.is_blacklisted) {
     return { allowed: false, reason: 'blacklisted', message: '你的账号已被拉黑，无法操作' }
   }
-  const minLevel = await getSetting('min_douyu_level', 0)
-  if ((user.douyu_level || 0) < minLevel) {
+  const minLevel = Number(await getSetting('min_douyu_level', 0)) || 0
+  if ((currentUser.douyu_level || 0) < minLevel) {
     return {
       allowed: false,
       reason: 'level_too_low',
@@ -155,7 +193,7 @@ export async function listChallenges({ includeHidden = true } = {}) {
 
 // 拉所有主任务 + 它们的隐藏子任务，按 active 优先、completed 靠后排
 // currentUserId 传入时，hidden_challenges 字段只包含该用户可见的隐藏任务
-export async function listMainChallengesWithHidden({ currentUserId = null } = {}) {
+export async function listMainChallengesWithHidden({ currentUserId = null, showAllHidden = false } = {}) {
   const { data: mains, error: e1 } = await supabase
     .from('challenges')
     .select('*')
@@ -172,22 +210,19 @@ export async function listMainChallengesWithHidden({ currentUserId = null } = {}
     .order('created_at', { ascending: true })
   if (e2) throw e2
 
-  // 隐藏任务可见性过滤
-  // 规则：一个隐藏任务对以下用户可见：
-  //   1. 该隐藏任务自己的创建者
-  //   2. 主任务的创建者
-  const visibleHiddens = (hiddens || []).filter(h => {
-    if (!currentUserId) return false // 未登录看不到任何隐藏
-    if (h.created_by === currentUserId) return true // 隐藏任务自己的创建者
-    const main = mains.find(m => m.id === h.parent_challenge_id)
-    if (main && main.created_by === currentUserId) return true // 主任务创建者
-    return false
-  })
+  const visibleHiddens = showAllHidden
+    ? (hiddens || [])
+    : (hiddens || []).filter(h => {
+        if (!currentUserId) return false
+        if (h.created_by === currentUserId) return true
+        const main = mains.find(m => m.id === h.parent_challenge_id)
+        if (main && main.created_by === currentUserId) return true
+        return false
+      })
 
   const combined = mains.map(m => ({
     ...m,
     hidden_challenges: visibleHiddens.filter(h => h.parent_challenge_id === m.id),
-    // 如果有用户看不到的隐藏任务，给主任务一个 hidden_count 用于徽章（只对主任务创建者显示）
     hidden_total_count: (hiddens || []).filter(h => h.parent_challenge_id === m.id).length,
   }))
 

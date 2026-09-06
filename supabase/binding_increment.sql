@@ -1,56 +1,38 @@
 -- ============================================================
--- 悬赏令 - 数据库迁移脚本 (v3 + 斗鱼绑定)
+-- 悬赏令：斗鱼账号绑定 + v3 用户系统 增量数据库脚本
 -- ============================================================
+-- 使用场景：仓库/线上 Supabase 已经有 challenges、follow_orders 等任务表时，只执行本文件。
+-- 不会删除旧表，不会清空旧数据。
+-- 说明：当前代码以 users / settings / created_by 为准；如果旧库里还有 app_users，优先迁移到 users。
+-- 执行位置：Supabase Dashboard -> SQL Editor。
 
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
--- ============================================================
--- 兼容老版本：清理老字段
--- ============================================================
-
-ALTER TABLE IF EXISTS streamers DROP COLUMN IF EXISTS avatar_url;
-
-DROP VIEW IF EXISTS challenges_with_hidden CASCADE;
-DROP VIEW IF EXISTS challenge_gifts CASCADE;
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
 
 DO $$
 BEGIN
   IF EXISTS (
-    SELECT 1 FROM information_schema.columns
-    WHERE table_name = 'challenges' AND column_name = 'boss_id'
-    AND data_type = 'uuid'
+    SELECT 1 FROM information_schema.tables
+    WHERE table_name = 'app_users'
+  ) AND NOT EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_name = 'users'
   ) THEN
-    ALTER TABLE challenges DROP CONSTRAINT IF EXISTS challenges_boss_id_fkey;
-    ALTER TABLE challenges ALTER COLUMN boss_id TYPE TEXT USING boss_id::TEXT;
+    ALTER TABLE app_users RENAME TO users;
   END IF;
 END $$;
 
-DO $$
-BEGIN
-  IF EXISTS (
-    SELECT 1 FROM information_schema.columns
-    WHERE table_name = 'follow_orders' AND column_name = 'boss_id'
-    AND data_type = 'uuid'
-  ) THEN
-    ALTER TABLE follow_orders DROP CONSTRAINT IF EXISTS follow_orders_boss_id_fkey;
-    ALTER TABLE follow_orders ALTER COLUMN boss_id TYPE TEXT USING boss_id::TEXT;
-  END IF;
-END $$;
-
-ALTER TABLE IF EXISTS challenges DROP COLUMN IF EXISTS streamer_id;
-DROP TABLE IF EXISTS bosses CASCADE;
-DROP INDEX IF EXISTS idx_challenges_boss;
-DROP INDEX IF EXISTS idx_challenges_streamer;
-DROP INDEX IF EXISTS idx_streamers_game_tag;
-DROP INDEX IF EXISTS idx_streamers_is_live;
-
--- ============================================================
--- 1. 用户表
--- ============================================================
 CREATE TABLE IF NOT EXISTS users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   username TEXT,
-  username_normalized TEXT UNIQUE,
+  username_normalized TEXT,
   password_salt TEXT,
   password_hash TEXT,
   douyu_uid TEXT UNIQUE,
@@ -66,13 +48,53 @@ CREATE TABLE IF NOT EXISTS users (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_users_douyu_id ON users(douyu_uid);
-CREATE INDEX IF NOT EXISTS idx_users_blacklist ON users(is_blacklisted);
-CREATE INDEX IF NOT EXISTS idx_users_username_normalized ON users(username_normalized);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS username TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS username_normalized TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS password_salt TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS douyu_uid TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS douyu_nickname TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS douyu_avatar TEXT DEFAULT '';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS douyu_level INTEGER DEFAULT 0;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS douyu_badge_name TEXT DEFAULT '';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS douyu_badge_level INTEGER DEFAULT 0;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS is_blacklisted BOOLEAN DEFAULT false;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS bind_session_id UUID;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMPTZ;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
 
--- ============================================================
--- 2. 配置表（key-value）
--- ============================================================
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_douyu_id ON users(douyu_uid);
+CREATE INDEX IF NOT EXISTS idx_users_blacklist ON users(is_blacklisted);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_normalized ON users(username_normalized);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'users_username_length_check') THEN
+    ALTER TABLE users
+      ADD CONSTRAINT users_username_length_check
+      CHECK (username IS NULL OR char_length(trim(username)) BETWEEN 2 AND 20);
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'users_password_hash_not_empty_check') THEN
+    ALTER TABLE users
+      ADD CONSTRAINT users_password_hash_not_empty_check
+      CHECK (
+        password_salt IS NULL OR password_hash IS NULL
+        OR (length(password_salt) >= 16 AND length(password_hash) >= 64)
+      );
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'users_douyu_required_check') THEN
+    ALTER TABLE users
+      ADD CONSTRAINT users_douyu_required_check
+      CHECK (
+        (douyu_uid IS NULL AND douyu_nickname IS NULL)
+        OR (length(trim(douyu_uid)) > 0 AND length(trim(douyu_nickname)) > 0)
+      );
+  END IF;
+END $$;
+
 CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
   value TEXT,
@@ -82,31 +104,6 @@ CREATE TABLE IF NOT EXISTS settings (
 INSERT INTO settings (key, value) VALUES ('min_douyu_level', '0')
 ON CONFLICT (key) DO NOTHING;
 
--- ============================================================
--- 3. 挑战表
--- ============================================================
-CREATE TABLE IF NOT EXISTS challenges (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  boss_id TEXT NOT NULL,
-  title TEXT NOT NULL,
-  description TEXT,
-  condition_desc TEXT,
-  gift_type TEXT NOT NULL CHECK (gift_type IN ('飞机', '火箭', '币')),
-  gift_quantity INTEGER NOT NULL CHECK (gift_quantity > 0),
-  is_hidden BOOLEAN DEFAULT false,
-  parent_challenge_id UUID REFERENCES challenges(id) ON DELETE CASCADE,
-  created_by UUID REFERENCES users(id) ON DELETE SET NULL,
-  status TEXT DEFAULT 'active' CHECK (status IN ('active', 'completed', 'cancelled')),
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_challenges_parent ON challenges(parent_challenge_id);
-CREATE INDEX IF NOT EXISTS idx_challenges_status ON challenges(status);
-CREATE INDEX IF NOT EXISTS idx_challenges_boss_id ON challenges(boss_id);
-CREATE INDEX IF NOT EXISTS idx_challenges_created_by ON challenges(created_by);
-
--- 老表兼容：补加 created_by 列（如果旧表已存在）
 DO $$
 BEGIN
   IF NOT EXISTS (
@@ -121,22 +118,7 @@ BEGIN
       FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL;
   END IF;
 END $$;
-
--- ============================================================
--- 4. 跟单表
--- ============================================================
-CREATE TABLE IF NOT EXISTS follow_orders (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  challenge_id UUID NOT NULL REFERENCES challenges(id) ON DELETE CASCADE,
-  boss_id TEXT NOT NULL,
-  gift_type TEXT NOT NULL CHECK (gift_type IN ('飞机', '火箭', '币')),
-  gift_quantity INTEGER NOT NULL CHECK (gift_quantity > 0),
-  created_by UUID REFERENCES users(id) ON DELETE SET NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_follow_orders_challenge ON follow_orders(challenge_id);
-CREATE INDEX IF NOT EXISTS idx_follow_orders_created_by ON follow_orders(created_by);
+CREATE INDEX IF NOT EXISTS idx_challenges_created_by ON challenges(created_by);
 
 DO $$
 BEGIN
@@ -152,39 +134,8 @@ BEGIN
       FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL;
   END IF;
 END $$;
+CREATE INDEX IF NOT EXISTS idx_follow_orders_created_by ON follow_orders(created_by);
 
--- ============================================================
--- 5. 视图：挑战累计礼物
--- ============================================================
-CREATE OR REPLACE VIEW challenge_gifts AS
-SELECT
-  c.id AS challenge_id,
-  c.gift_type,
-  c.gift_quantity AS base_quantity,
-  COALESCE(SUM(f.gift_quantity) FILTER (WHERE f.gift_type = c.gift_type), 0) AS follow_same_quantity,
-  COALESCE(SUM(f.gift_quantity), 0) AS follow_total_quantity,
-  c.gift_quantity + COALESCE(SUM(f.gift_quantity) FILTER (WHERE f.gift_type = c.gift_type), 0) AS total_same_quantity
-FROM challenges c
-LEFT JOIN follow_orders f ON f.challenge_id = c.id
-GROUP BY c.id, c.gift_type, c.gift_quantity;
-
--- ============================================================
--- 6. 视图：主任务 + 它的隐藏任务
--- ============================================================
-CREATE OR REPLACE VIEW challenges_with_hidden AS
-SELECT
-  c.*,
-  (
-    SELECT json_agg(h.* ORDER BY h.created_at)
-    FROM challenges h
-    WHERE h.parent_challenge_id = c.id AND h.is_hidden = true
-  ) AS hidden_challenges
-FROM challenges c
-WHERE c.is_hidden = false OR c.parent_challenge_id IS NULL;
-
--- ============================================================
--- 7. 斗鱼绑定与账号体系
--- ============================================================
 CREATE TABLE IF NOT EXISTS douyu_profiles (
   room_id TEXT NOT NULL,
   profile_key TEXT NOT NULL,
@@ -246,41 +197,14 @@ CREATE TABLE IF NOT EXISTS auth_sessions (
 CREATE INDEX IF NOT EXISTS idx_auth_sessions_user_id ON auth_sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_auth_sessions_expires_at ON auth_sessions(expires_at);
 
-DO $$
-BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'users_username_length_check') THEN
-    ALTER TABLE users
-      ADD CONSTRAINT users_username_length_check
-      CHECK (username IS NULL OR char_length(trim(username)) BETWEEN 2 AND 20);
-  END IF;
-
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'users_password_hash_not_empty_check') THEN
-    ALTER TABLE users
-      ADD CONSTRAINT users_password_hash_not_empty_check
-      CHECK (
-        password_salt IS NULL OR password_hash IS NULL
-        OR (length(password_salt) >= 16 AND length(password_hash) >= 64)
-      );
-  END IF;
-
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'users_douyu_required_check') THEN
-    ALTER TABLE users
-      ADD CONSTRAINT users_douyu_required_check
-      CHECK ((douyu_uid IS NULL AND douyu_nickname IS NULL) OR (length(trim(douyu_uid)) > 0 AND length(trim(douyu_nickname)) > 0));
-  END IF;
-END $$;
-
-CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
-BEGIN
-  NEW.updated_at = NOW();
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
 DROP TRIGGER IF EXISTS update_users_updated_at ON users;
 CREATE TRIGGER update_users_updated_at
   BEFORE UPDATE ON users
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_challenges_updated_at ON challenges;
+CREATE TRIGGER update_challenges_updated_at
+  BEFORE UPDATE ON challenges
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 DROP TRIGGER IF EXISTS update_bind_sessions_updated_at ON bind_sessions;
@@ -352,4 +276,4 @@ CREATE POLICY "Public insert auth_sessions" ON auth_sessions FOR INSERT WITH CHE
 DROP POLICY IF EXISTS "Public update auth_sessions" ON auth_sessions;
 CREATE POLICY "Public update auth_sessions" ON auth_sessions FOR UPDATE USING (true);
 
-SELECT 'Migration v3 + binding completed' AS status;
+SELECT 'binding increment completed' AS status;

@@ -97,6 +97,48 @@ button {
   box-shadow: 0 0 8px rgba(255, 215, 0, 0.4);
 }
 
+
+.brand-action.secondary {
+  background: transparent;
+  color: #FFD700;
+  border: 1px solid #FFD700;
+}
+
+.brand-account {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 215, 0, 0.1);
+  border: 1px solid #FFD700;
+  padding: 6px 12px;
+  border-radius: 4px;
+  color: #FFD700;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.brand-account-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #00d084;
+  box-shadow: 0 0 6px rgba(0, 208, 132, 0.7);
+}
+
+.brand-signout {
+  background: transparent;
+  color: #f5f5f5;
+  border: 1px solid #555;
+  padding: 8px 14px;
+  border-radius: 4px;
+  font-size: 0.9rem;
+}
+
+.brand-signout:hover {
+  border-color: #FFD700;
+  color: #FFD700;
+}
+
 .brand-season {
   display: flex;
   align-items: center;
@@ -187,7 +229,49 @@ button {
 }
 
 @media (max-width: 640px) {
-  .brand-season {
+  
+.brand-action.secondary {
+  background: transparent;
+  color: #FFD700;
+  border: 1px solid #FFD700;
+}
+
+.brand-account {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 215, 0, 0.1);
+  border: 1px solid #FFD700;
+  padding: 6px 12px;
+  border-radius: 4px;
+  color: #FFD700;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.brand-account-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #00d084;
+  box-shadow: 0 0 6px rgba(0, 208, 132, 0.7);
+}
+
+.brand-signout {
+  background: transparent;
+  color: #f5f5f5;
+  border: 1px solid #555;
+  padding: 8px 14px;
+  border-radius: 4px;
+  font-size: 0.9rem;
+}
+
+.brand-signout:hover {
+  border-color: #FFD700;
+  color: #FFD700;
+}
+
+.brand-season {
     display: none;
   }
 }

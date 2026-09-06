@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Layout from '../components/Layout'
+import { useAuth } from '../context/useAuth'
 import {
   listChallenges,
   createChallenge,
-  getCurrentUser,
   checkCurrentUserPermission,
   GIFT_TYPES,
   GIFT_ICONS,
@@ -12,7 +12,6 @@ import {
 import './PublishPage.css'
 
 const emptyForm = {
-  boss_id: '',
   title: '',
   condition_desc: '',
   description: '',
@@ -24,37 +23,64 @@ const emptyForm = {
 
 export default function PublishPage() {
   const navigate = useNavigate()
+  const { user: currentUser } = useAuth()
   const [mainChallenges, setMainChallenges] = useState([])
   const [form, setForm] = useState(emptyForm)
+  const bossLabel = currentUser?.username || currentUser?.douyu_nickname || currentUser?.douyu_id || ''
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState(false)
-  const [currentUser, setCurrentUser] = useState(null)
+  const [permission, setPermission] = useState({ loading: true, allowed: false, message: '' })
 
-  useEffect(() => {
-    const u = getCurrentUser()
-    setCurrentUser(u)
-    if (!u) {
-      alert('请先登录后再发布任务')
-      navigate('/')
-      return
-    }
-    fetchOptions()
-  }, [])
-
-  async function fetchOptions() {
+  const fetchOptions = useCallback(async () => {
     try {
       const all = await listChallenges()
       setMainChallenges(all.filter(c => c.parent_challenge_id == null))
     } catch (e) {
       console.error(e)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchOptions()
+  }, [fetchOptions])
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      if (!currentUser) {
+        if (!cancelled) {
+          setPermission({ loading: false, allowed: false, message: '请先登录后再发布任务' })
+        }
+        return
+      }
+      try {
+        const perm = await checkCurrentUserPermission(currentUser)
+        if (!cancelled) setPermission({ loading: false, ...perm })
+      } catch (err) {
+        if (!cancelled) {
+          setPermission({ loading: false, allowed: false, message: err.message || '权限检查失败' })
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [currentUser])
 
   async function handleSubmit(e) {
     e.preventDefault()
 
-    if (!form.boss_id.trim()) {
-      alert('请填写老板ID（昵称）')
+    if (!currentUser) {
+      alert('请先登录后再发布任务')
+      return
+    }
+    if (!permission.allowed) {
+      alert(permission.message || '当前账号暂时无法发布任务')
+      return
+    }
+    if (!bossLabel.trim()) {
+      alert('登录后未获取到用户信息，请重新登录')
       return
     }
     if (!form.title.trim()) {
@@ -71,18 +97,10 @@ export default function PublishPage() {
       return
     }
 
-    // 权限检查
-    const perm = await checkCurrentUserPermission()
-    if (!perm.allowed) {
-      alert(perm.message)
-      return
-    }
-
     setSubmitting(true)
     try {
-      const user = getCurrentUser()
       const payload = {
-        boss_id: form.boss_id.trim(),
+        boss_id: bossLabel.trim(),
         title: form.title.trim(),
         description: form.description.trim() || null,
         condition_desc: form.condition_desc.trim() || null,
@@ -90,7 +108,7 @@ export default function PublishPage() {
         gift_quantity: qty,
         is_hidden: form.is_hidden,
         parent_challenge_id: form.is_hidden ? form.parent_challenge_id : null,
-        created_by: user?.id || null,
+        created_by: currentUser?.id || null,
         status: 'active',
       }
       const created = await createChallenge(payload)
@@ -126,26 +144,33 @@ export default function PublishPage() {
           <h1 className="publish-title">发布挑战</h1>
           <p className="publish-subtitle">填好下面信息，任务立刻出现在首页</p>
 
-          {currentUser && (
+          {currentUser ? (
             <div className="publish-current-user">
-              当前：<strong>{currentUser.douyu_nickname || currentUser.douyu_id}</strong>
+              当前：<strong>{currentUser.douyu_nickname || currentUser.douyu_id || currentUser.username}</strong>
               {currentUser.douyu_level > 0 && <span className="publish-user-lv"> LV{currentUser.douyu_level}</span>}
               {currentUser.is_blacklisted && <span className="publish-user-banned">已拉黑</span>}
             </div>
+          ) : (
+            <div className="publish-current-user is-warning">
+              请先登录后再发布任务。
+            </div>
+          )}
+
+          {!permission.loading && !permission.allowed && currentUser && (
+            <div className="publish-current-user is-warning">{permission.message}</div>
           )}
 
           <form onSubmit={handleSubmit} className="publish-form">
             <fieldset className="publish-section">
               <legend>🏷️ 老板信息</legend>
-              <label>
-                老板ID / 昵称 <span className="required">*</span>
-                <input
-                  value={form.boss_id}
-                  onChange={e => setForm({ ...form, boss_id: e.target.value })}
-                  placeholder="输入你的ID或昵称（全局唯一）"
-                  required
-                />
-              </label>
+              <div className="publish-current-user publish-current-user--fixed">
+                <div>
+                  当前登录用户：<strong>{bossLabel || '未获取到信息'}</strong>
+                </div>
+                <div className="publish-current-user-sub">
+                  系统会自动使用登录账号信息，不支持手动输入
+                </div>
+              </div>
             </fieldset>
 
             <fieldset className="publish-section">
@@ -248,7 +273,7 @@ export default function PublishPage() {
               <button
                 type="submit"
                 className="publish-btn-primary"
-                disabled={submitting}
+                disabled={submitting || !currentUser || !permission.allowed}
               >
                 {submitting ? '发布中...' : '🚀 立即发布'}
               </button>

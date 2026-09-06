@@ -1,17 +1,17 @@
-import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useCallback, useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import Layout from '../components/Layout'
+import { useAuth } from '../context/useAuth'
 import {
   listMainChallengesWithHidden,
   aggregateFollowOrders,
   updateChallenge,
-  getCurrentUser,
   GIFT_ICONS,
 } from '../lib/api'
 import './HomePage.css'
 
 export default function HomePage() {
-  const navigate = useNavigate()
+  const { user: currentUser } = useAuth()
   const [challenges, setChallenges] = useState([])
   const [followMap, setFollowMap] = useState({})
   const [loading, setLoading] = useState(true)
@@ -19,18 +19,11 @@ export default function HomePage() {
   const [statusFilter, setStatusFilter] = useState('全部')
   const [giftFilter, setGiftFilter] = useState('全部')
   const [busy, setBusy] = useState(null)
-  const [currentUser, setCurrentUser] = useState(null)
 
-  useEffect(() => {
-    setCurrentUser(getCurrentUser())
-    fetchAll()
-  }, [])
-
-  async function fetchAll() {
+  const fetchAll = useCallback(async () => {
     setLoading(true)
     try {
-      const user = getCurrentUser()
-      const cs = await listMainChallengesWithHidden({ currentUserId: user?.id })
+      const cs = await listMainChallengesWithHidden({ currentUserId: currentUser?.id || null })
       setChallenges(cs)
       const fm = {}
       await Promise.all(cs.map(async c => {
@@ -47,7 +40,12 @@ export default function HomePage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [currentUser])
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchAll()
+  }, [fetchAll])
 
   function getTotal(c) {
     const fm = followMap[c.id]
@@ -55,7 +53,6 @@ export default function HomePage() {
     return c.gift_quantity + (fm.acc[c.gift_type] || 0)
   }
 
-  // 判断当前用户是否是主任务的创建者（只有创建者自己能看到隐藏徽章）
   function isMainCreator(c) {
     return currentUser && c.created_by === currentUser.id
   }
@@ -158,7 +155,6 @@ export default function HomePage() {
                   )}
                 </div>
 
-                {/* 隐藏任务徽章：只有主任务创建者能看到（且未登录不显示） */}
                 {isMainCreator(c) && c.hidden_total_count > 0 && (
                   <div className="cb-hidden-badge">
                     🎁 包含 {c.hidden_total_count} 个隐藏任务

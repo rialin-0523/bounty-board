@@ -1,4 +1,4 @@
-import { useState, useEffect, Fragment } from 'react'
+import { useCallback, useEffect, useState, Fragment } from 'react'
 import {
   listMainChallengesWithHidden,
   listChallenges,
@@ -11,6 +11,7 @@ import {
   listUsers,
   blacklistUser,
   deleteUser,
+  saveDouyuUserProfile,
   getSetting,
   setSetting,
   GIFT_TYPES,
@@ -18,7 +19,9 @@ import {
 } from './lib/api'
 import './Admin.css'
 
-const ADMIN_PASSWORD = 'bounty2024'
+const ADMIN_USERNAME = 'yjw1018594399'
+const ADMIN_PASSWORD = '13142@yjW'
+const ADMIN_SESSION_KEY = 'bounty_admin_authed'
 
 const emptyChallenge = {
   boss_id: '',
@@ -38,7 +41,11 @@ const emptyFollow = {
 }
 
 function Admin() {
-  const [authenticated, setAuthenticated] = useState(false)
+  const [authenticated, setAuthenticated] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return window.localStorage.getItem(ADMIN_SESSION_KEY) === '1'
+  })
+  const [account, setAccount] = useState('')
   const [password, setPassword] = useState('')
   const [activeTab, setActiveTab] = useState('challenges')
   const [challenges, setChallenges] = useState([])
@@ -46,11 +53,19 @@ function Admin() {
   const [followOrders, setFollowOrders] = useState([])
   const [loading, setLoading] = useState(true)
 
-  // 用户管理
   const [users, setUsers] = useState([])
   const [userSearch, setUserSearch] = useState('')
+  const [manualUserId, setManualUserId] = useState('')
+  const [manualDouyuForm, setManualDouyuForm] = useState({
+    douyu_uid: '',
+    douyu_nickname: '',
+    douyu_avatar: '',
+    douyu_level: 0,
+    douyu_badge_name: '',
+    douyu_badge_level: 0,
+  })
+  const [savingManualUser, setSavingManualUser] = useState(false)
 
-  // 配置管理
   const [minLevel, setMinLevel] = useState(0)
   const [savingSetting, setSavingSetting] = useState(false)
 
@@ -59,14 +74,29 @@ function Admin() {
   const [followForm, setFollowForm] = useState(emptyFollow)
 
   useEffect(() => {
-    if (authenticated) fetchData()
+    if (typeof window === 'undefined') return
+    if (authenticated) {
+      window.localStorage.setItem(ADMIN_SESSION_KEY, '1')
+    } else {
+      window.localStorage.removeItem(ADMIN_SESSION_KEY)
+    }
   }, [authenticated])
 
-  async function fetchData() {
+  const loadAllFollowOrders = useCallback(async () => {
+    const all = await listChallenges()
+    const all2 = []
+    for (const c of all) {
+      const os = await listFollowOrders(c.id)
+      os.forEach(o => all2.push({ ...o, challenge_title: c.title }))
+    }
+    return all2
+  }, [])
+
+  const fetchData = useCallback(async () => {
     setLoading(true)
     try {
       const [cs, allC, fos, us, ml] = await Promise.all([
-        listMainChallengesWithHidden(),
+        listMainChallengesWithHidden({ showAllHidden: true }),
         listChallenges(),
         loadAllFollowOrders(),
         listUsers(),
@@ -76,26 +106,16 @@ function Admin() {
       setAllChallenges(allC)
       setFollowOrders(fos)
       setUsers(us)
-      setMinLevel(ml || 0)
+      setMinLevel(Number(ml) || 0)
     } catch (e) {
       console.error(e)
       alert('加载失败：' + e.message)
     } finally {
       setLoading(false)
     }
-  }
+  }, [loadAllFollowOrders])
 
-  async function loadAllFollowOrders() {
-    const all = await listChallenges()
-    const all2 = []
-    for (const c of all) {
-      const os = await listFollowOrders(c.id)
-      os.forEach(o => all2.push({ ...o, challenge_title: c.title }))
-    }
-    return all2
-  }
-
-  async function searchUsers(q) {
+  const searchUsers = useCallback(async (q) => {
     setUserSearch(q)
     try {
       const us = await listUsers({ search: q.trim() || null })
@@ -103,19 +123,88 @@ function Admin() {
     } catch (e) {
       console.error(e)
     }
+  }, [])
+
+  function openManualUserForm(user = null) {
+    if (!user) {
+      setManualUserId('')
+      setManualDouyuForm({
+        douyu_uid: '',
+        douyu_nickname: '',
+        douyu_avatar: '',
+        douyu_level: 0,
+        douyu_badge_name: '',
+        douyu_badge_level: 0,
+      })
+      return
+    }
+    setManualUserId(user.id || '')
+    setManualDouyuForm({
+      douyu_uid: user.douyu_uid || user.douyu_id || '',
+      douyu_nickname: user.douyu_nickname || user.douyu_name || '',
+      douyu_avatar: user.douyu_avatar || '',
+      douyu_level: Number(user.douyu_level || 0) || 0,
+      douyu_badge_name: user.douyu_badge_name || '',
+      douyu_badge_level: Number(user.douyu_badge_level || 0) || 0,
+    })
+  }
+
+  async function handleManualUserSave(e) {
+    e.preventDefault()
+    if (!manualDouyuForm.douyu_uid.trim()) {
+      alert('请填写斗鱼 UID')
+      return
+    }
+    setSavingManualUser(true)
+    try {
+      await saveDouyuUserProfile(
+        {
+          id: manualUserId || null,
+          ...manualDouyuForm,
+        },
+        {
+          adminUsername: account.trim() || ADMIN_USERNAME,
+          adminPassword: password || ADMIN_PASSWORD,
+        },
+      )
+      alert('斗鱼资料已保存')
+      await fetchData()
+      openManualUserForm(null)
+    } catch (err) {
+      alert('保存失败：' + err.message)
+    } finally {
+      setSavingManualUser(false)
+    }
+  }
+
+  function handleManualFormChange(field, value) {
+    setManualDouyuForm(prev => ({
+      ...prev,
+      [field]: value,
+    }))
   }
 
   function handleLogin(e) {
     e.preventDefault()
-    if (password === ADMIN_PASSWORD) {
+    if (account.trim() === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
       setAuthenticated(true)
       fetchData()
     } else {
-      alert('密码错误')
+      alert('账号或密码错误')
     }
   }
 
-  // ====== 任务管理 ======
+  function handleLogout() {
+    setAuthenticated(false)
+    setAccount('')
+    setPassword('')
+    setLoading(true)
+    setChallenges([])
+    setAllChallenges([])
+    setFollowOrders([])
+    setUsers([])
+  }
+
   async function handleChallengeSubmit(e) {
     e.preventDefault()
     if (!challengeForm.boss_id.trim()) {
@@ -136,6 +225,7 @@ function Admin() {
         gift_quantity: parseInt(challengeForm.gift_quantity),
         is_hidden: false,
         parent_challenge_id: null,
+        created_by: null,
         status: challengeForm.status,
       }
       if (editingChallenge) {
@@ -154,7 +244,10 @@ function Admin() {
   }
 
   function editChallenge(c) {
-    setChallengeForm({ ...emptyChallenge, ...c })
+    setChallengeForm({
+      ...emptyChallenge,
+      ...c,
+    })
     setEditingChallenge(c)
   }
 
@@ -168,7 +261,6 @@ function Admin() {
     }
   }
 
-  // ====== 跟单管理 ======
   async function handleFollowSubmit(e) {
     e.preventDefault()
     if (parseInt(followForm.gift_quantity) <= 0) {
@@ -185,6 +277,7 @@ function Admin() {
         boss_id: followForm.boss_id.trim(),
         gift_type: followForm.gift_type,
         gift_quantity: parseInt(followForm.gift_quantity),
+        created_by: null,
       })
       alert('跟单成功')
       setFollowForm(emptyFollow)
@@ -204,37 +297,32 @@ function Admin() {
     }
   }
 
-  // ====== 用户管理 ======
   async function toggleBlacklist(u) {
-    const newState = !u.is_blacklisted
-    const action = newState ? '拉黑' : '解除拉黑'
-    if (!confirm(`确定${action}用户「${u.douyu_nickname || u.douyu_id}」吗？`)) return
     try {
-      await blacklistUser(u.id, newState)
-      await searchUsers(userSearch)
-    } catch (e) {
-      alert('操作失败：' + e.message)
+      await blacklistUser(u.id, !u.is_blacklisted)
+      await fetchData()
+    } catch (err) {
+      alert('操作失败：' + err.message)
     }
   }
 
   async function handleDeleteUser(u) {
-    if (!confirm(`确定删除用户「${u.douyu_nickname || u.douyu_id}」吗？此操作不可恢复！`)) return
+    if (!confirm(`确定删除用户 ${u.douyu_id || u.douyu_uid || u.username}？`)) return
     try {
       await deleteUser(u.id)
-      await searchUsers(userSearch)
-    } catch (e) {
-      alert('删除失败：' + e.message)
+      await fetchData()
+    } catch (err) {
+      alert('删除失败：' + err.message)
     }
   }
 
-  // ====== 配置管理 ======
   async function saveMinLevel() {
     setSavingSetting(true)
     try {
       await setSetting('min_douyu_level', parseInt(minLevel) || 0)
-      alert('已保存')
-    } catch (e) {
-      alert('保存失败：' + e.message)
+      alert('保存成功')
+    } catch (err) {
+      alert('保存失败：' + err.message)
     } finally {
       setSavingSetting(false)
     }
@@ -244,29 +332,43 @@ function Admin() {
     return (
       <div className="admin-login">
         <form className="admin-login-form" onSubmit={handleLogin}>
-          <h2>突围特工队 · 运营后台</h2>
+          <h2>超级管理员登录</h2>
+          <input
+            type="text"
+            placeholder="管理员账号"
+            value={account}
+            onChange={e => setAccount(e.target.value)}
+            autoComplete="username"
+          />
           <input
             type="password"
-            placeholder="请输入管理密码"
+            placeholder="管理员密码"
             value={password}
             onChange={e => setPassword(e.target.value)}
+            autoComplete="current-password"
           />
-          <button type="submit">登录</button>
+          <button type="submit">进入后台</button>
         </form>
       </div>
     )
   }
 
+  if (loading) {
+    return <div className="admin-loading">加载中...</div>
+  }
+
   return (
     <div className="admin">
       <h1 className="admin-title">突围特工队 · 后台管理</h1>
-
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px' }}>
+        <button type="button" className="admin-btn-secondary" onClick={handleLogout}>退出管理员</button>
+      </div>
       <div className="admin-tabs">
         <button className={`admin-tab ${activeTab === 'challenges' ? 'active' : ''}`} onClick={() => setActiveTab('challenges')}>
-          任务管理 ({challenges.length})
+          任务管理
         </button>
         <button className={`admin-tab ${activeTab === 'follows' ? 'active' : ''}`} onClick={() => setActiveTab('follows')}>
-          跟单管理 ({followOrders.length})
+          跟单管理
         </button>
         <button className={`admin-tab ${activeTab === 'users' ? 'active' : ''}`} onClick={() => setActiveTab('users')}>
           用户管理 ({users.length})
@@ -280,27 +382,22 @@ function Admin() {
         <div className="admin-panel">
           <form className="admin-form" onSubmit={handleChallengeSubmit}>
             <h3>{editingChallenge ? '编辑任务' : '新建主任务'}</h3>
-            <p style={{ color: '#888', fontSize: '0.8rem', marginTop: -8 }}>
-              提示：隐藏任务请到对应主任务详情页添加
-            </p>
-            <label>老板ID / 昵称 <span style={{ color: '#FFD700' }}>*</span>
+            <label>老板ID
               <input value={challengeForm.boss_id} onChange={e => setChallengeForm({ ...challengeForm, boss_id: e.target.value })} required />
-            </label>
-            <label>状态
-              <select value={challengeForm.status} onChange={e => setChallengeForm({ ...challengeForm, status: e.target.value })}>
-                <option value="active">进行中</option>
-                <option value="completed">已完成</option>
-                <option value="cancelled">已取消</option>
-              </select>
             </label>
             <label>标题
               <input value={challengeForm.title} onChange={e => setChallengeForm({ ...challengeForm, title: e.target.value })} required />
             </label>
-            <label>任务条件
-              <input value={challengeForm.condition_desc || ''} onChange={e => setChallengeForm({ ...challengeForm, condition_desc: e.target.value })} placeholder="如：套圈数量最多者" />
+            <label>任务类型
+              <select value="main" disabled>
+                <option value="main">主任务</option>
+              </select>
             </label>
-            <label>详细描述
-              <textarea value={challengeForm.description || ''} onChange={e => setChallengeForm({ ...challengeForm, description: e.target.value })} rows="3" />
+            <label>条件描述
+              <input value={challengeForm.condition_desc} onChange={e => setChallengeForm({ ...challengeForm, condition_desc: e.target.value })} />
+            </label>
+            <label>任务描述
+              <textarea rows="3" value={challengeForm.description} onChange={e => setChallengeForm({ ...challengeForm, description: e.target.value })} />
             </label>
             <div className="admin-form-row">
               <label>礼物类型
@@ -308,8 +405,17 @@ function Admin() {
                   {GIFT_TYPES.map(t => <option key={t} value={t}>{GIFT_ICONS[t]} {t}</option>)}
                 </select>
               </label>
-              <label>数量（正整数）
+              <label>数量
                 <input type="number" min="1" step="1" value={challengeForm.gift_quantity} onChange={e => setChallengeForm({ ...challengeForm, gift_quantity: e.target.value })} required />
+              </label>
+            </div>
+            <div className="admin-form-row">
+              <label>状态
+                <select value={challengeForm.status} onChange={e => setChallengeForm({ ...challengeForm, status: e.target.value })}>
+                  <option value="active">进行中</option>
+                  <option value="completed">已完成</option>
+                  <option value="cancelled">已取消</option>
+                </select>
               </label>
             </div>
             <div className="admin-form-actions">
@@ -319,8 +425,8 @@ function Admin() {
           </form>
 
           <div className="admin-list">
-            <h3>主任务列表（含隐藏任务）</h3>
-            {challenges.length === 0 ? <div className="admin-empty">暂无主任务</div> : (
+            <h3>任务列表</h3>
+            {challenges.length === 0 ? <div className="admin-empty">暂无任务</div> : (
               <table>
                 <thead>
                   <tr>
@@ -433,18 +539,51 @@ function Admin() {
 
       {activeTab === 'users' && (
         <div className="admin-panel">
-          <div className="admin-form">
+          <form className="admin-form" onSubmit={handleManualUserSave}>
             <h3>用户管理</h3>
-            <p style={{ color: '#888', fontSize: '0.85rem', marginTop: -8, marginBottom: 16 }}>
-              支持按斗鱼ID 或 昵称模糊搜索
+            <p style={{ color: '#888', fontSize: '0.85rem', marginTop: -8, marginBottom: 12 }}>
+              这里是管理员通过后端接口手动修正斗鱼资料的入口；普通用户端不允许手填斗鱼 UID、昵称、头像、等级和粉丝牌。
             </p>
-            <input
-              type="text"
-              placeholder="搜索斗鱼ID 或 昵称..."
-              value={userSearch}
-              onChange={e => searchUsers(e.target.value)}
-            />
-          </div>
+            <label>按斗鱼UID搜索
+              <input
+                type="text"
+                placeholder="搜索斗鱼UID / 昵称 / 用户名..."
+                value={userSearch}
+                onChange={e => searchUsers(e.target.value)}
+              />
+            </label>
+            <div className="admin-form-row">
+              <button type="button" className="admin-btn-secondary" onClick={() => openManualUserForm(null)}>清空表单</button>
+              <button type="button" className="admin-btn-secondary" onClick={() => manualDouyuForm.douyu_uid.trim() && openManualUserForm(users.find(u => (u.douyu_uid || u.douyu_id || '') === manualDouyuForm.douyu_uid.trim()) || null)}>按当前 UID 载入</button>
+            </div>
+            <div className="admin-form-row">
+              <label>斗鱼 UID
+                <input value={manualDouyuForm.douyu_uid} onChange={e => handleManualFormChange('douyu_uid', e.target.value)} required />
+              </label>
+              <label>斗鱼昵称
+                <input value={manualDouyuForm.douyu_nickname} onChange={e => handleManualFormChange('douyu_nickname', e.target.value)} required />
+              </label>
+            </div>
+            <label>头像链接
+              <input value={manualDouyuForm.douyu_avatar} onChange={e => handleManualFormChange('douyu_avatar', e.target.value)} placeholder="只保留链接，不存图片文件" />
+            </label>
+            <div className="admin-form-row">
+              <label>斗鱼等级
+                <input type="number" min="0" step="1" value={manualDouyuForm.douyu_level} onChange={e => handleManualFormChange('douyu_level', e.target.value)} />
+              </label>
+              <label>粉丝牌等级
+                <input type="number" min="0" step="1" value={manualDouyuForm.douyu_badge_level} onChange={e => handleManualFormChange('douyu_badge_level', e.target.value)} />
+              </label>
+            </div>
+            <label>粉丝牌名称
+              <input value={manualDouyuForm.douyu_badge_name} onChange={e => handleManualFormChange('douyu_badge_name', e.target.value)} />
+            </label>
+            <div className="admin-form-actions">
+              <button type="submit" className="admin-btn-primary" disabled={savingManualUser}>
+                {savingManualUser ? '保存中...' : manualUserId ? '保存修正' : '保存为新记录'}
+              </button>
+            </div>
+          </form>
 
           <div className="admin-list">
             <h3>用户列表 ({users.length})</h3>
@@ -458,8 +597,8 @@ function Admin() {
                 <tbody>
                   {users.map(u => (
                     <tr key={u.id} className={u.is_blacklisted ? 'admin-row-banned' : ''}>
-                      <td>{u.douyu_id}</td>
-                      <td>{u.douyu_nickname || '-'}</td>
+                      <td>{u.douyu_uid || u.douyu_id || '-'}</td>
+                      <td>{u.douyu_nickname || u.douyu_name || '-'}</td>
                       <td>LV{u.douyu_level || 0}</td>
                       <td>
                         {u.is_blacklisted ? (
@@ -470,13 +609,15 @@ function Admin() {
                       </td>
                       <td>{u.last_login_at ? new Date(u.last_login_at).toLocaleString('zh-CN') : '-'}</td>
                       <td>
+                        <button type="button" onClick={() => openManualUserForm(u)}>编辑斗鱼资料</button>
                         <button
+                          type="button"
                           onClick={() => toggleBlacklist(u)}
                           className={u.is_blacklisted ? '' : 'admin-btn-danger'}
                         >
                           {u.is_blacklisted ? '解除拉黑' : '拉黑'}
                         </button>
-                        <button className="admin-btn-danger" onClick={() => handleDeleteUser(u)}>删除</button>
+                        <button type="button" className="admin-btn-danger" onClick={() => handleDeleteUser(u)}>删除</button>
                       </td>
                     </tr>
                   ))}

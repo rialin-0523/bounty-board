@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import Layout from '../components/Layout'
+import { useAuth } from '../context/useAuth'
 import {
   getChallenge,
   listChallenges,
@@ -8,7 +9,6 @@ import {
   createFollowOrder,
   createChallenge,
   updateChallenge,
-  getCurrentUser,
   checkCurrentUserPermission,
   GIFT_ICONS,
   GIFT_TYPES,
@@ -18,13 +18,13 @@ import './ChallengeDetail.css'
 export default function ChallengeDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const { user: currentUser } = useAuth()
   const [challenge, setChallenge] = useState(null)
   const [hiddenList, setHiddenList] = useState([])
   const [hiddenTotal, setHiddenTotal] = useState(0)
   const [followMain, setFollowMain] = useState({ orders: [], acc: {} })
   const [followHidden, setFollowHidden] = useState({})
   const [loading, setLoading] = useState(true)
-  const [currentUser, setCurrentUser] = useState(null)
 
   // 跟单
   const [showFollowForm, setShowFollowForm] = useState(false)
@@ -45,35 +45,23 @@ export default function ChallengeDetail() {
   const [submitting, setSubmitting] = useState(false)
   const [completing, setCompleting] = useState(false)
 
-  useEffect(() => {
-    const u = getCurrentUser()
-    setCurrentUser(u)
-    fetchAll()
-  }, [id])
-
-  async function fetchAll() {
+  const fetchAll = useCallback(async () => {
     setLoading(true)
     try {
       const c = await getChallenge(id)
       setChallenge(c)
-      const user = getCurrentUser()
 
       let hiddens = []
-      let totalHidden = 0
       if (c.parent_challenge_id == null) {
         const all = await listChallenges()
-        const allH = all.filter(h => h.parent_challenge_id === c.id)
-        totalHidden = allH.length
-
-        // 隐藏任务可见性：只有主任务创建者 或 隐藏任务自己创建者 能看到
-        hiddens = allH.filter(h => {
-          if (!user) return false
-          if (h.created_by === user.id) return true
-          if (c.created_by === user.id) return true
-          return false
+        hiddens = all.filter(h => {
+          if (h.parent_challenge_id !== c.id) return false
+          if (!currentUser) return false
+          if (h.created_by === currentUser.id) return true
+          return c.created_by === currentUser.id
         })
         setHiddenList(hiddens)
-        setHiddenTotal(totalHidden)
+        setHiddenTotal(all.filter(h => h.parent_challenge_id === c.id).length)
       }
 
       const fm = await aggregateFollowOrders(c.id)
@@ -92,23 +80,26 @@ export default function ChallengeDetail() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [id, currentUser])
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchAll()
+  }, [fetchAll])
 
   function getTotal(c) {
     if (c.id === challenge?.id) {
       return c.gift_quantity + (followMain.acc[c.gift_type] || 0)
-    } else {
-      const fh = followHidden[c.id]
-      return c.gift_quantity + ((fh && fh.acc[c.gift_type]) || 0)
     }
+    const fh = followHidden[c.id]
+    return c.gift_quantity + ((fh && fh.acc[c.gift_type]) || 0)
   }
 
-  // 是否主任务创建者
+  const isMain = challenge?.parent_challenge_id == null
   const isMainCreator = currentUser && challenge && challenge.created_by === currentUser.id
 
-  // 跟单权限检查
   async function checkPerm() {
-    const perm = await checkCurrentUserPermission()
+    const perm = await checkCurrentUserPermission(currentUser)
     if (!perm.allowed) {
       alert(perm.message)
       return false
@@ -134,7 +125,7 @@ export default function ChallengeDetail() {
     }
     setSubmitting(true)
     try {
-      const user = getCurrentUser()
+      const user = currentUser
       await createFollowOrder({
         challenge_id: followTarget.id,
         boss_id: followForm.boss_id.trim(),
@@ -182,7 +173,7 @@ export default function ChallengeDetail() {
     }
     setSubmitting(true)
     try {
-      const user = getCurrentUser()
+      const user = currentUser
       await createChallenge({
         boss_id: hiddenForm.boss_id.trim(),
         title: hiddenForm.title.trim(),
@@ -219,7 +210,6 @@ export default function ChallengeDetail() {
     }
   }
 
-  // 包装函数：跟单按钮先检查权限
   async function handleFollowClick(c) {
     if (!currentUser) {
       alert('请先登录后再操作')
@@ -228,7 +218,6 @@ export default function ChallengeDetail() {
     if (await checkPerm()) openFollowForm(c)
   }
 
-  // 包装函数：添加隐藏任务按钮先检查权限
   async function handleAddHiddenClick() {
     if (!currentUser) {
       alert('请先登录后再发布隐藏任务')
@@ -243,8 +232,6 @@ export default function ChallengeDetail() {
   if (!challenge) {
     return <Layout><div className="cd-loading">任务不存在</div></Layout>
   }
-
-  const isMain = challenge.parent_challenge_id == null
 
   return (
     <Layout>
@@ -325,7 +312,6 @@ export default function ChallengeDetail() {
           </div>
         </div>
 
-        {/* 隐藏任务区 - 只在主任务详情页 + 用户已登录 + 是相关创建者时显示 */}
         {isMain && currentUser && (isMainCreator || hiddenList.length > 0) && (
           <div className="cd-hidden-section">
             <div className="cd-section-title">
@@ -333,9 +319,7 @@ export default function ChallengeDetail() {
             </div>
             {hiddenList.length === 0 ? (
               <div className="cd-hidden-empty">
-                {isMainCreator
-                  ? '还没有隐藏任务，点上方「🎁 + 隐藏任务」来创建一个'
-                  : '该任务的隐藏任务对其他用户不可见'}
+                {isMainCreator ? '暂无隐藏任务，点击右上角添加一个吧。' : '暂无你可见的隐藏任务'}
               </div>
             ) : (
               hiddenList.map(h => {
@@ -374,7 +358,6 @@ export default function ChallengeDetail() {
           </div>
         )}
 
-        {/* 跟单表单 */}
         {showFollowForm && (
           <div className="cd-modal-overlay" onClick={() => setShowFollowForm(false)}>
             <div className="cd-modal" onClick={e => e.stopPropagation()}>
@@ -428,7 +411,6 @@ export default function ChallengeDetail() {
           </div>
         )}
 
-        {/* 添加隐藏任务表单 */}
         {showHiddenForm && (
           <div className="cd-modal-overlay" onClick={() => setShowHiddenForm(false)}>
             <div className="cd-modal large" onClick={e => e.stopPropagation()}>
