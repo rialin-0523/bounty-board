@@ -77,10 +77,10 @@ flowchart TD
 创建 `.env`：
 
 ```bash
-VITE_SUPABASE_URL=https://tbtvgdeljiiwzixwiwue.supabase.co
+VITE_SUPABASE_URL=https://srngkjdqufardczwjxxr.supabase.co
 VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
 
-SUPABASE_URL=https://tbtvgdeljiiwzixwiwue.supabase.co
+SUPABASE_URL=https://srngkjdqufardczwjxxr.supabase.co
 SUPABASE_SECRET_KEY=your-supabase-secret-or-service-role-key
 # 或兼容老写法：SUPABASE_SERVICE_ROLE_KEY=your-legacy-service-role-key
 

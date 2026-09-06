@@ -7,7 +7,7 @@ export const DOUYU_DANMAKU_HOSTS = (process.env.DOUYU_DANMAKU_HOSTS || 'danmupro
   .map(s => s.trim())
   .filter(Boolean)
 
-export const SUPABASE_URL = process.env.SUPABASE_URL || 'https://tbtvgdeljiiwzixwiwue.supabase.co'
+export const SUPABASE_URL = process.env.SUPABASE_URL || 'https://srngkjdqufardczwjxxr.supabase.co'
 export const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 
 if (!SUPABASE_SERVICE_ROLE_KEY) {
