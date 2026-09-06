@@ -11,6 +11,7 @@ import {
   listUsers,
   blacklistUser,
   deleteUser,
+  saveDouyuUserProfile,
   getSetting,
   setSetting,
   GIFT_TYPES,
@@ -54,6 +55,16 @@ function Admin() {
 
   const [users, setUsers] = useState([])
   const [userSearch, setUserSearch] = useState('')
+  const [manualUserId, setManualUserId] = useState('')
+  const [manualDouyuForm, setManualDouyuForm] = useState({
+    douyu_uid: '',
+    douyu_nickname: '',
+    douyu_avatar: '',
+    douyu_level: 0,
+    douyu_badge_name: '',
+    douyu_badge_level: 0,
+  })
+  const [savingManualUser, setSavingManualUser] = useState(false)
 
   const [minLevel, setMinLevel] = useState(0)
   const [savingSetting, setSavingSetting] = useState(false)
@@ -113,6 +124,65 @@ function Admin() {
       console.error(e)
     }
   }, [])
+
+  function openManualUserForm(user = null) {
+    if (!user) {
+      setManualUserId('')
+      setManualDouyuForm({
+        douyu_uid: '',
+        douyu_nickname: '',
+        douyu_avatar: '',
+        douyu_level: 0,
+        douyu_badge_name: '',
+        douyu_badge_level: 0,
+      })
+      return
+    }
+    setManualUserId(user.id || '')
+    setManualDouyuForm({
+      douyu_uid: user.douyu_uid || user.douyu_id || '',
+      douyu_nickname: user.douyu_nickname || user.douyu_name || '',
+      douyu_avatar: user.douyu_avatar || '',
+      douyu_level: Number(user.douyu_level || 0) || 0,
+      douyu_badge_name: user.douyu_badge_name || '',
+      douyu_badge_level: Number(user.douyu_badge_level || 0) || 0,
+    })
+  }
+
+  async function handleManualUserSave(e) {
+    e.preventDefault()
+    if (!manualDouyuForm.douyu_uid.trim()) {
+      alert('请填写斗鱼 UID')
+      return
+    }
+    setSavingManualUser(true)
+    try {
+      await saveDouyuUserProfile(
+        {
+          id: manualUserId || null,
+          ...manualDouyuForm,
+        },
+        {
+          adminUsername: account.trim() || ADMIN_USERNAME,
+          adminPassword: password || ADMIN_PASSWORD,
+        },
+      )
+      alert('斗鱼资料已保存')
+      await fetchData()
+      openManualUserForm(null)
+    } catch (err) {
+      alert('保存失败：' + err.message)
+    } finally {
+      setSavingManualUser(false)
+    }
+  }
+
+  function handleManualFormChange(field, value) {
+    setManualDouyuForm(prev => ({
+      ...prev,
+      [field]: value,
+    }))
+  }
 
   function handleLogin(e) {
     e.preventDefault()
@@ -469,18 +539,51 @@ function Admin() {
 
       {activeTab === 'users' && (
         <div className="admin-panel">
-          <div className="admin-form">
+          <form className="admin-form" onSubmit={handleManualUserSave}>
             <h3>用户管理</h3>
-            <p style={{ color: '#888', fontSize: '0.85rem', marginTop: -8, marginBottom: 16 }}>
-              支持按斗鱼ID、昵称或用户名模糊搜索
+            <p style={{ color: '#888', fontSize: '0.85rem', marginTop: -8, marginBottom: 12 }}>
+              这里是管理员通过后端接口手动修正斗鱼资料的入口；普通用户端不允许手填斗鱼 UID、昵称、头像、等级和粉丝牌。
             </p>
-            <input
-              type="text"
-              placeholder="搜索斗鱼ID / 昵称 / 用户名..."
-              value={userSearch}
-              onChange={e => searchUsers(e.target.value)}
-            />
-          </div>
+            <label>按斗鱼UID搜索
+              <input
+                type="text"
+                placeholder="搜索斗鱼UID / 昵称 / 用户名..."
+                value={userSearch}
+                onChange={e => searchUsers(e.target.value)}
+              />
+            </label>
+            <div className="admin-form-row">
+              <button type="button" className="admin-btn-secondary" onClick={() => openManualUserForm(null)}>清空表单</button>
+              <button type="button" className="admin-btn-secondary" onClick={() => manualDouyuForm.douyu_uid.trim() && openManualUserForm(users.find(u => (u.douyu_uid || u.douyu_id || '') === manualDouyuForm.douyu_uid.trim()) || null)}>按当前 UID 载入</button>
+            </div>
+            <div className="admin-form-row">
+              <label>斗鱼 UID
+                <input value={manualDouyuForm.douyu_uid} onChange={e => handleManualFormChange('douyu_uid', e.target.value)} required />
+              </label>
+              <label>斗鱼昵称
+                <input value={manualDouyuForm.douyu_nickname} onChange={e => handleManualFormChange('douyu_nickname', e.target.value)} required />
+              </label>
+            </div>
+            <label>头像链接
+              <input value={manualDouyuForm.douyu_avatar} onChange={e => handleManualFormChange('douyu_avatar', e.target.value)} placeholder="只保留链接，不存图片文件" />
+            </label>
+            <div className="admin-form-row">
+              <label>斗鱼等级
+                <input type="number" min="0" step="1" value={manualDouyuForm.douyu_level} onChange={e => handleManualFormChange('douyu_level', e.target.value)} />
+              </label>
+              <label>粉丝牌等级
+                <input type="number" min="0" step="1" value={manualDouyuForm.douyu_badge_level} onChange={e => handleManualFormChange('douyu_badge_level', e.target.value)} />
+              </label>
+            </div>
+            <label>粉丝牌名称
+              <input value={manualDouyuForm.douyu_badge_name} onChange={e => handleManualFormChange('douyu_badge_name', e.target.value)} />
+            </label>
+            <div className="admin-form-actions">
+              <button type="submit" className="admin-btn-primary" disabled={savingManualUser}>
+                {savingManualUser ? '保存中...' : manualUserId ? '保存修正' : '保存为新记录'}
+              </button>
+            </div>
+          </form>
 
           <div className="admin-list">
             <h3>用户列表 ({users.length})</h3>
@@ -506,13 +609,15 @@ function Admin() {
                       </td>
                       <td>{u.last_login_at ? new Date(u.last_login_at).toLocaleString('zh-CN') : '-'}</td>
                       <td>
+                        <button type="button" onClick={() => openManualUserForm(u)}>编辑斗鱼资料</button>
                         <button
+                          type="button"
                           onClick={() => toggleBlacklist(u)}
                           className={u.is_blacklisted ? '' : 'admin-btn-danger'}
                         >
                           {u.is_blacklisted ? '解除拉黑' : '拉黑'}
                         </button>
-                        <button className="admin-btn-danger" onClick={() => handleDeleteUser(u)}>删除</button>
+                        <button type="button" className="admin-btn-danger" onClick={() => handleDeleteUser(u)}>删除</button>
                       </td>
                     </tr>
                   ))}

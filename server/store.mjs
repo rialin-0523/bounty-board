@@ -346,6 +346,55 @@ export async function upsertDouyuProfile(profile) {
   return result.data
 }
 
+export async function upsertUserDouyuProfile(payload) {
+  const supabase = requireAdmin()
+  const id = String(payload?.id || '').trim()
+  const douyuUid = String(payload?.douyu_uid || '').trim()
+  const douyuNickname = String(payload?.douyu_nickname || '').trim()
+  const douyuAvatar = String(payload?.douyu_avatar || '').trim()
+  const douyuLevel = Number(payload?.douyu_level || 0) || 0
+  const douyuBadgeName = String(payload?.douyu_badge_name || '').trim()
+  const douyuBadgeLevel = Number(payload?.douyu_badge_level || 0) || 0
+  if (!douyuUid) throw new Error('斗鱼 UID 不能为空')
+  if (!douyuNickname) throw new Error('斗鱼昵称不能为空')
+
+  const row = {
+    douyu_uid: douyuUid,
+    douyu_nickname: douyuNickname,
+    douyu_avatar: douyuAvatar,
+    douyu_level: douyuLevel,
+    douyu_badge_name: douyuBadgeName,
+    douyu_badge_level: douyuBadgeLevel,
+    updated_at: nowIso(),
+  }
+
+  let result
+  if (id) {
+    result = await supabase.from('users').update(row).eq('id', id).select('*').maybeSingle()
+    if (result.error) throw result.error
+    if (!result.data) throw new Error('用户不存在，无法保存斗鱼资料')
+    return userShape(result.data)
+  }
+
+  result = await supabase
+    .from('users')
+    .upsert({
+      ...row,
+      username: payload?.username ? String(payload.username).trim() : null,
+      username_normalized: payload?.username ? normalizeUsername(payload.username) : null,
+      password_salt: payload?.password_salt || null,
+      password_hash: payload?.password_hash || null,
+      is_blacklisted: Boolean(payload?.is_blacklisted),
+      bind_session_id: payload?.bind_session_id || null,
+      last_login_at: payload?.last_login_at || null,
+      created_at: payload?.created_at || nowIso(),
+    }, { onConflict: 'douyu_uid' })
+    .select('*')
+    .maybeSingle()
+  if (result.error) throw result.error
+  return userShape(result.data)
+}
+
 export async function findDouyuProfile(roomId, uid = '', name = '') {
   const supabase = requireAdmin()
   const room = String(roomId || '').trim()

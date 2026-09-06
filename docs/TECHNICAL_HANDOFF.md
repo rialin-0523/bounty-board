@@ -23,7 +23,7 @@
 当前统一以 `users` 为准，字段同时承载：
 
 - 站内账号：`username`、`username_normalized`、`password_salt`、`password_hash`
-- 斗鱼资料：`douyu_uid`、`douyu_nickname`、`douyu_avatar`、`douyu_level`、`douyu_badge_name`、`douyu_badge_level`
+- 斗鱼资料：`douyu_uid`、`douyu_nickname`、`douyu_avatar`、`douyu_level`、`douyu_badge_name`、`douyu_badge_level`；普通前台只读，后台可通过接口手动修正。
 - 权限状态：`is_blacklisted`、`last_login_at`
 
 `app_users` 只应视作旧数据迁移痕迹，不再作为主代码依赖。
@@ -32,6 +32,7 @@
 
 - `settings.min_douyu_level` 控制最低斗鱼等级。
 - 后台“配置管理” tab 修改后，发布、跟单、添加隐藏任务都会受影响。
+- 后台“用户管理” tab 通过 `POST /api/admin/users/douyu-profile` 手动修正斗鱼资料，普通用户端不提供手填入口。
 
 ### 3.3 任务可见性
 

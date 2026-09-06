@@ -1,5 +1,21 @@
 import { supabase } from './supabase'
 
+async function requestJson(path, options = {}) {
+  const response = await fetch(path, {
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(options.headers || {}),
+    },
+    ...options,
+  })
+  const data = await response.json().catch(() => null)
+  if (!response.ok || (data && data.ok === false)) {
+    throw new Error(data?.reason || `请求失败：${response.status}`)
+  }
+  return data
+}
+
 function normalizeUserRow(row) {
   if (!row) return null
   return {
@@ -64,6 +80,28 @@ export async function blacklistUser(id, isBlacklisted) {
 export async function deleteUser(id) {
   const { error } = await supabase.from('users').delete().eq('id', id)
   if (error) throw error
+}
+
+export async function saveDouyuUserProfile(payload, adminAuth = {}) {
+  const body = {
+    id: payload.id || null,
+    douyu_uid: String(payload.douyu_uid || '').trim(),
+    douyu_nickname: String(payload.douyu_nickname || '').trim(),
+    douyu_avatar: String(payload.douyu_avatar || '').trim(),
+    douyu_level: Number(payload.douyu_level || 0) || 0,
+    douyu_badge_name: String(payload.douyu_badge_name || '').trim(),
+    douyu_badge_level: Number(payload.douyu_badge_level || 0) || 0,
+    adminUsername: String(adminAuth.adminUsername || '').trim(),
+    adminPassword: String(adminAuth.adminPassword || ''),
+  }
+  if (!body.douyu_uid) throw new Error('斗鱼 UID 不能为空')
+  if (!body.douyu_nickname) throw new Error('斗鱼昵称不能为空')
+  if (!body.adminUsername || !body.adminPassword) throw new Error('管理员账号未登录，无法保存')
+  const data = await requestJson('/api/admin/users/douyu-profile', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+  return normalizeUserRow(data.user)
 }
 
 // 根据斗鱼ID 获取或创建用户（兼容旧逻辑，可用于简单登录）

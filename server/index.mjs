@@ -14,12 +14,15 @@ import {
   refreshExpiredBindSessions,
   revokeSessionToken,
   upsertDouyuProfile,
+  upsertUserDouyuProfile,
 } from './store.mjs'
 
 const PORT = Number(process.env.PORT || 8788)
 const COOKIE_SECURE = String(process.env.COOKIE_SECURE || '').toLowerCase() === 'true'
 const BASE_URL = process.env.BIND_SERVER_BASE_URL || `http://127.0.0.1:${PORT}`
 const ALLOW_ORIGIN = process.env.BIND_SERVER_ALLOW_ORIGIN || 'http://127.0.0.1:5173'
+const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'yjw1018594399'
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '13142@yjW'
 const BIND_TTL_MS = 120_000
 const LISTENER_IDLE_STOP_MS = Number(process.env.DOUYU_BIND_IDLE_STOP_MS || 30_000)
 const CACHE_REFRESH_MS = 2_000
@@ -97,6 +100,22 @@ function requireSupabaseReady(res) {
     reason: 'SUPABASE_SECRET_KEY / SUPABASE_SERVICE_ROLE_KEY 未配置，绑定与登录暂不可用',
   })
   return false
+}
+
+function readAdminCredentials(body = {}) {
+  return {
+    username: String(body.adminUsername || body.account || '').trim(),
+    password: String(body.adminPassword || body.password || '').trim(),
+  }
+}
+
+function requireAdminCredentials(res, body) {
+  const creds = readAdminCredentials(body)
+  if (creds.username !== ADMIN_USERNAME || creds.password !== ADMIN_PASSWORD) {
+    json(res, 401, { ok: false, reason: '管理员账号或密码错误' })
+    return false
+  }
+  return true
 }
 
 async function refreshBindCache() {
@@ -288,6 +307,14 @@ async function handleApi(req, res, url) {
     if (token) await revokeSessionToken(token)
     res.setHeader('Set-Cookie', clearCookieHeader({ secure: COOKIE_SECURE }))
     return json(res, 200, { ok: true })
+  }
+
+  if (url.pathname === '/api/admin/users/douyu-profile' && req.method === 'POST') {
+    if (!requireSupabaseReady(res)) return
+    const body = await readJson(req)
+    if (!requireAdminCredentials(res, body)) return
+    const user = await upsertUserDouyuProfile(body)
+    return json(res, 200, { ok: true, user })
   }
 
   notFound(res)
