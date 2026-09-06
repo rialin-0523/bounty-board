@@ -175,3 +175,4 @@ node --check server/auth.mjs
 
 - `docs/TECHNICAL_HANDOFF.md`
 - `docs/FRIEND_SETUP_SHORT.md`
+- `docs/SQL_DATABASE.md`

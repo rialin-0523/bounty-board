@@ -68,6 +68,7 @@ npm run dev
 - `server/store.mjs`
 - `supabase/migration.sql`
 - `supabase/binding_increment.sql`
+- `docs/SQL_DATABASE.md`
 - `README.md`
 
 ## 6. 验证清单
