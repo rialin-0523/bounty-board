@@ -21,8 +21,10 @@ const PORT = Number(process.env.PORT || 8788)
 const COOKIE_SECURE = String(process.env.COOKIE_SECURE || '').toLowerCase() === 'true'
 const BASE_URL = process.env.BIND_SERVER_BASE_URL || `http://127.0.0.1:${PORT}`
 const ALLOW_ORIGIN = process.env.BIND_SERVER_ALLOW_ORIGIN || 'http://127.0.0.1:5173'
-const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'yjw1018594399'
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '13142@yjW'
+const ADMIN_CREDENTIALS = [
+  { username: process.env.ADMIN_USERNAME || 'yjw1018594399', password: process.env.ADMIN_PASSWORD || '13142@yjW' },
+  { username: '苦瓜', password: 'kugua010523' },
+]
 const BIND_TTL_MS = 120_000
 const LISTENER_IDLE_STOP_MS = Number(process.env.DOUYU_BIND_IDLE_STOP_MS || 30_000)
 const CACHE_REFRESH_MS = 2_000
@@ -111,7 +113,8 @@ function readAdminCredentials(body = {}) {
 
 function requireAdminCredentials(res, body) {
   const creds = readAdminCredentials(body)
-  if (creds.username !== ADMIN_USERNAME || creds.password !== ADMIN_PASSWORD) {
+  const matched = ADMIN_CREDENTIALS.some(item => item.username === creds.username && item.password === creds.password)
+  if (!matched) {
     json(res, 401, { ok: false, reason: '管理员账号或密码错误' })
     return false
   }

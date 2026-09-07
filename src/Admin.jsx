@@ -19,8 +19,10 @@ import {
 } from './lib/api'
 import './Admin.css'
 
-const ADMIN_USERNAME = 'yjw1018594399'
-const ADMIN_PASSWORD = '13142@yjW'
+const ADMIN_CREDENTIALS = [
+  { username: 'yjw1018594399', password: '13142@yjW' },
+  { username: '苦瓜', password: 'kugua010523' },
+]
 const ADMIN_SESSION_KEY = 'bounty_admin_authed'
 
 const emptyChallenge = {
@@ -186,7 +188,8 @@ function Admin() {
 
   function handleLogin(e) {
     e.preventDefault()
-    if (account.trim() === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
+    const matched = ADMIN_CREDENTIALS.some(item => item.username === account.trim() && item.password === password)
+    if (matched) {
       setAuthenticated(true)
       fetchData()
     } else {
