@@ -143,6 +143,8 @@ node --check server/auth.mjs
 
 > 说明：`xd.miyang.cloud` 已在服务器上通过 DNSPod DNS-01 签发 Let's Encrypt 证书，并配置为 HTTPS-only；`http://xd.miyang.cloud/` 当前直接拒绝连接，不再提供明文 HTTP 页面。
 
+- 2026-09-08 已重新同步生产前端/后端构建，确保超级管理员账号 `苦瓜 / kugua010523` 在生产环境可直接登录后台。
+
 
 ### 生产 HTTPS 状态
 
