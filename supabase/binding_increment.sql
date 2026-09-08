@@ -135,6 +135,7 @@ BEGIN
   END IF;
 END $$;
 CREATE INDEX IF NOT EXISTS idx_follow_orders_created_by ON follow_orders(created_by);
+ALTER TABLE follow_orders ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
 
 CREATE TABLE IF NOT EXISTS douyu_profiles (
   room_id TEXT NOT NULL,
@@ -202,9 +203,19 @@ CREATE TRIGGER update_users_updated_at
   BEFORE UPDATE ON users
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_settings_updated_at ON settings;
+CREATE TRIGGER update_settings_updated_at
+  BEFORE UPDATE ON settings
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
 DROP TRIGGER IF EXISTS update_challenges_updated_at ON challenges;
 CREATE TRIGGER update_challenges_updated_at
   BEFORE UPDATE ON challenges
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_follow_orders_updated_at ON follow_orders;
+CREATE TRIGGER update_follow_orders_updated_at
+  BEFORE UPDATE ON follow_orders
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 DROP TRIGGER IF EXISTS update_bind_sessions_updated_at ON bind_sessions;
@@ -225,55 +236,40 @@ ALTER TABLE douyu_profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE bind_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE auth_sessions ENABLE ROW LEVEL SECURITY;
 
+-- API-only 模式：前端不再直接访问 Supabase 表，所有业务读写统一走 Node API。
+-- 因此删除旧的 Public policies；service role 后端仍可访问，anon key 不再具备表级读写能力。
 DROP POLICY IF EXISTS "Public read users" ON users;
-CREATE POLICY "Public read users" ON users FOR SELECT USING (true);
 DROP POLICY IF EXISTS "Public insert users" ON users;
-CREATE POLICY "Public insert users" ON users FOR INSERT WITH CHECK (true);
 DROP POLICY IF EXISTS "Public update users" ON users;
-CREATE POLICY "Public update users" ON users FOR UPDATE USING (true);
 DROP POLICY IF EXISTS "Public delete users" ON users;
-CREATE POLICY "Public delete users" ON users FOR DELETE USING (true);
 
 DROP POLICY IF EXISTS "Public read settings" ON settings;
-CREATE POLICY "Public read settings" ON settings FOR SELECT USING (true);
 DROP POLICY IF EXISTS "Public update settings" ON settings;
-CREATE POLICY "Public update settings" ON settings FOR UPDATE USING (true);
 DROP POLICY IF EXISTS "Public insert settings" ON settings;
-CREATE POLICY "Public insert settings" ON settings FOR INSERT WITH CHECK (true);
 
 DROP POLICY IF EXISTS "Public read challenges" ON challenges;
-CREATE POLICY "Public read challenges" ON challenges FOR SELECT USING (true);
 DROP POLICY IF EXISTS "Public insert challenges" ON challenges;
-CREATE POLICY "Public insert challenges" ON challenges FOR INSERT WITH CHECK (true);
 DROP POLICY IF EXISTS "Public update challenges" ON challenges;
-CREATE POLICY "Public update challenges" ON challenges FOR UPDATE USING (true);
 DROP POLICY IF EXISTS "Public delete challenges" ON challenges;
-CREATE POLICY "Public delete challenges" ON challenges FOR DELETE USING (true);
 
 DROP POLICY IF EXISTS "Public read follow_orders" ON follow_orders;
-CREATE POLICY "Public read follow_orders" ON follow_orders FOR SELECT USING (true);
 DROP POLICY IF EXISTS "Public insert follow_orders" ON follow_orders;
-CREATE POLICY "Public insert follow_orders" ON follow_orders FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Public update follow_orders" ON follow_orders;
+DROP POLICY IF EXISTS "Public delete follow_orders" ON follow_orders;
 
 DROP POLICY IF EXISTS "Public read douyu_profiles" ON douyu_profiles;
-CREATE POLICY "Public read douyu_profiles" ON douyu_profiles FOR SELECT USING (true);
 DROP POLICY IF EXISTS "Public insert douyu_profiles" ON douyu_profiles;
-CREATE POLICY "Public insert douyu_profiles" ON douyu_profiles FOR INSERT WITH CHECK (true);
 DROP POLICY IF EXISTS "Public update douyu_profiles" ON douyu_profiles;
-CREATE POLICY "Public update douyu_profiles" ON douyu_profiles FOR UPDATE USING (true);
+DROP POLICY IF EXISTS "Public delete douyu_profiles" ON douyu_profiles;
 
 DROP POLICY IF EXISTS "Public read bind_sessions" ON bind_sessions;
-CREATE POLICY "Public read bind_sessions" ON bind_sessions FOR SELECT USING (true);
 DROP POLICY IF EXISTS "Public insert bind_sessions" ON bind_sessions;
-CREATE POLICY "Public insert bind_sessions" ON bind_sessions FOR INSERT WITH CHECK (true);
 DROP POLICY IF EXISTS "Public update bind_sessions" ON bind_sessions;
-CREATE POLICY "Public update bind_sessions" ON bind_sessions FOR UPDATE USING (true);
+DROP POLICY IF EXISTS "Public delete bind_sessions" ON bind_sessions;
 
 DROP POLICY IF EXISTS "Public read auth_sessions" ON auth_sessions;
-CREATE POLICY "Public read auth_sessions" ON auth_sessions FOR SELECT USING (true);
 DROP POLICY IF EXISTS "Public insert auth_sessions" ON auth_sessions;
-CREATE POLICY "Public insert auth_sessions" ON auth_sessions FOR INSERT WITH CHECK (true);
 DROP POLICY IF EXISTS "Public update auth_sessions" ON auth_sessions;
-CREATE POLICY "Public update auth_sessions" ON auth_sessions FOR UPDATE USING (true);
+DROP POLICY IF EXISTS "Public delete auth_sessions" ON auth_sessions;
 
 SELECT 'binding increment completed' AS status;

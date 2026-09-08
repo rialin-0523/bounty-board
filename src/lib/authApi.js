@@ -1,18 +1,4 @@
-async function requestJson(path, options = {}) {
-  const response = await fetch(path, {
-    credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(options.headers || {}),
-    },
-    ...options,
-  })
-  const data = await response.json().catch(() => null)
-  if (!response.ok || (data && data.ok === false)) {
-    throw new Error(data?.reason || `请求失败：${response.status}`)
-  }
-  return data
-}
+import { requestJson } from './http'
 
 export function getMe() {
   return requestJson('/api/auth/me')
@@ -46,5 +32,22 @@ export function completeBindSession(id, payload) {
   return requestJson(`/api/bind/sessions/${encodeURIComponent(id)}/complete`, {
     method: 'POST',
     body: JSON.stringify(payload),
+  })
+}
+
+export function adminLogin(payload) {
+  return requestJson('/api/admin/login', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function getAdminMe() {
+  return requestJson('/api/admin/me')
+}
+
+export function adminLogout() {
+  return requestJson('/api/admin/logout', {
+    method: 'POST',
   })
 }

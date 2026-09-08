@@ -29,12 +29,11 @@ export default function ChallengeDetail() {
   // 跟单
   const [showFollowForm, setShowFollowForm] = useState(false)
   const [followTarget, setFollowTarget] = useState(null)
-  const [followForm, setFollowForm] = useState({ boss_id: '', gift_type: '飞机', gift_quantity: 1 })
+  const [followForm, setFollowForm] = useState({ gift_type: '飞机', gift_quantity: 1 })
 
   // 隐藏任务
   const [showHiddenForm, setShowHiddenForm] = useState(false)
   const [hiddenForm, setHiddenForm] = useState({
-    boss_id: '',
     title: '',
     condition_desc: '',
     description: '',
@@ -97,6 +96,7 @@ export default function ChallengeDetail() {
 
   const isMain = challenge?.parent_challenge_id == null
   const isMainCreator = currentUser && challenge && challenge.created_by === currentUser.id
+  const currentUserLabel = currentUser?.username || currentUser?.douyu_nickname || currentUser?.douyu_id || ''
 
   async function checkPerm() {
     const perm = await checkCurrentUserPermission(currentUser)
@@ -110,13 +110,13 @@ export default function ChallengeDetail() {
   function openFollowForm(c) {
     setFollowTarget(c)
     setShowFollowForm(true)
-    setFollowForm({ boss_id: '', gift_type: c.gift_type, gift_quantity: 1 })
+    setFollowForm({ gift_type: c.gift_type, gift_quantity: 1 })
   }
 
   async function submitFollow(e) {
     e.preventDefault()
-    if (!followForm.boss_id.trim()) {
-      alert('请输入老板ID')
+    if (!currentUserLabel.trim()) {
+      alert('登录后未获取到用户信息，请重新登录')
       return
     }
     if (parseInt(followForm.gift_quantity) <= 0) {
@@ -128,7 +128,7 @@ export default function ChallengeDetail() {
       const user = currentUser
       await createFollowOrder({
         challenge_id: followTarget.id,
-        boss_id: followForm.boss_id.trim(),
+        boss_id: currentUserLabel.trim(),
         gift_type: followForm.gift_type,
         gift_quantity: parseInt(followForm.gift_quantity),
         created_by: user?.id || null,
@@ -147,7 +147,6 @@ export default function ChallengeDetail() {
   function openHiddenForm() {
     setShowHiddenForm(true)
     setHiddenForm({
-      boss_id: '',
       title: '',
       condition_desc: '',
       description: '',
@@ -158,8 +157,8 @@ export default function ChallengeDetail() {
 
   async function submitHidden(e) {
     e.preventDefault()
-    if (!hiddenForm.boss_id.trim()) {
-      alert('请输入老板ID')
+    if (!currentUserLabel.trim()) {
+      alert('登录后未获取到用户信息，请重新登录')
       return
     }
     if (!hiddenForm.title.trim()) {
@@ -175,7 +174,7 @@ export default function ChallengeDetail() {
     try {
       const user = currentUser
       await createChallenge({
-        boss_id: hiddenForm.boss_id.trim(),
+        boss_id: currentUserLabel.trim(),
         title: hiddenForm.title.trim(),
         description: hiddenForm.description.trim() || null,
         condition_desc: hiddenForm.condition_desc.trim() || null,
@@ -363,17 +362,10 @@ export default function ChallengeDetail() {
             <div className="cd-modal" onClick={e => e.stopPropagation()}>
               <div className="cd-modal-title">跟单：{followTarget.title}</div>
               <form onSubmit={submitFollow} className="cd-form">
-                <label className="cd-form-label">
-                  老板ID / 昵称
-                  <input
-                    className="cd-form-input"
-                    type="text"
-                    value={followForm.boss_id}
-                    onChange={e => setFollowForm({ ...followForm, boss_id: e.target.value })}
-                    placeholder="老板ID"
-                    required
-                  />
-                </label>
+                <div className="cd-current-user-box">
+                  <div>当前跟单用户：<strong>{currentUserLabel || '未获取到信息'}</strong></div>
+                  <small>系统会自动使用登录账号信息，不支持手动输入。</small>
+                </div>
                 <label className="cd-form-label">
                   礼物类型
                   <select
@@ -417,17 +409,10 @@ export default function ChallengeDetail() {
               <div className="cd-modal-title">🎁 添加隐藏任务</div>
               <div className="cd-modal-subtitle">关联到：{challenge.title}</div>
               <form onSubmit={submitHidden} className="cd-form">
-                <label className="cd-form-label">
-                  老板ID / 昵称 <span className="required">*</span>
-                  <input
-                    className="cd-form-input"
-                    type="text"
-                    value={hiddenForm.boss_id}
-                    onChange={e => setHiddenForm({ ...hiddenForm, boss_id: e.target.value })}
-                    placeholder="如：隐藏老板A"
-                    required
-                  />
-                </label>
+                <div className="cd-current-user-box">
+                  <div>当前发布用户：<strong>{currentUserLabel || '未获取到信息'}</strong></div>
+                  <small>系统会自动使用登录账号信息，不支持手动输入。</small>
+                </div>
                 <label className="cd-form-label">
                   任务标题 <span className="required">*</span>
                   <input

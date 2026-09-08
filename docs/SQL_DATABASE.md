@@ -7,6 +7,9 @@
 - **正式业务库是 SQL**，而且是 PostgreSQL。
 - **用户主身份认斗鱼 UID**，不是昵称。
 - **普通前台不允许手填斗鱼资料**，斗鱼资料只能由绑定接口抓取，或者管理员在后台通过接口修正。
+- 管理员后台可以先建“只有斗鱼资料、没有用户名密码”的测试/修正记录；用户后续用同一个斗鱼 UID 完成弹幕绑定时，后端会补上用户名密码并关联原记录，不会因为后台预录入就卡死。后台按 UID 修正已绑定用户时，只更新斗鱼资料，不会清空用户名和密码哈希。
+- **普通用户发布/跟单时不再相信前端传来的老板ID**，后端会从登录态自动取当前用户信息并写入 `boss_id` / `created_by`；管理员后台仍可手动维护。
+- **前后端分离后前端不再直连 Supabase 表**，业务读写统一走 Node API，数据库 RLS 应删除旧的 Public 读写策略。
 - **旧表 `app_users` 不再作为主表**，当前代码以 `users` 为准。
 - 绑定功能要先有下面这些表：`bind_sessions`、`auth_sessions`、`douyu_profiles`。
 
@@ -34,6 +37,19 @@ supabase/migration.sql
 ```
 
 这个脚本会一次性建好完整结构。
+
+
+### 3）如果已经切到 API-only 前后端分离
+
+前端已经改为 GitHub Pages + `VITE_API_BASE_URL` 调 Node API 后，建议执行：
+
+```sql
+supabase/api_only_rls_hardening.sql
+```
+
+这个脚本会删除旧的 Public policies，让 anon key 不再能直接读写 `users / settings / challenges / follow_orders / douyu_profiles / bind_sessions / auth_sessions`。后端使用 service role key，不受这个限制。
+
+> 注意：只有确认线上前端已经不再直接调用 Supabase 表后再执行。
 
 ---
 
@@ -140,7 +156,7 @@ supabase/migration.sql
 - `gift_type`
 - `gift_quantity`
 - `created_by`
-- `created_at`
+- `created_at` / `updated_at`
 
 ### 关键约束
 
@@ -162,7 +178,6 @@ supabase/migration.sql
 
 ### 主要字段
 
-- `id`
 - `room_id`
 - `profile_key`
 - `uid`
@@ -175,7 +190,7 @@ supabase/migration.sql
 - `previous_last_seen_at`
 - `last_seen_at`
 - `message_count`
-- `created_at` / `updated_at`
+- `updated_at`（毫秒时间戳）
 
 ### 关键约束
 
@@ -305,4 +320,3 @@ supabase/migration.sql
 - `supabase/binding_increment.sql`
 
 如果你朋友要直接改库，优先看这两个文件。
-

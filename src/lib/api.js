@@ -1,19 +1,13 @@
-import { supabase } from './supabase'
+import { requestJson } from './http'
 
-async function requestJson(path, options = {}) {
-  const response = await fetch(path, {
-    credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(options.headers || {}),
-    },
-    ...options,
+function queryString(params = {}) {
+  const query = new URLSearchParams()
+  Object.entries(params).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === '') return
+    query.set(key, String(value))
   })
-  const data = await response.json().catch(() => null)
-  if (!response.ok || (data && data.ok === false)) {
-    throw new Error(data?.reason || `请求失败：${response.status}`)
-  }
-  return data
+  const text = query.toString()
+  return text ? `?${text}` : ''
 }
 
 function normalizeUserRow(row) {
@@ -32,9 +26,9 @@ function normalizeUserRow(row) {
     username: row.username || '',
     username_normalized: row.username_normalized || '',
     bind_session_id: row.bind_session_id || null,
-    last_login_at: row.last_login_at || null,
-    created_at: row.created_at || null,
-    updated_at: row.updated_at || null,
+    last_login_at: row.last_login_at || row.lastLoginAt || null,
+    created_at: row.created_at || row.createdAt || null,
+    updated_at: row.updated_at || row.updatedAt || null,
   }
 }
 
@@ -42,35 +36,26 @@ function normalizeUserRow(row) {
 // 用户（Users）- 斗鱼用户 + 站内账号
 // =========================================================
 export async function listUsers({ search = null } = {}) {
-  let q = supabase.from('users').select('*').order('created_at', { ascending: false })
-  if (search) {
-    q = q.or(`douyu_uid.ilike.%${search}%,douyu_nickname.ilike.%${search}%,username.ilike.%${search}%`)
-  }
-  const { data, error } = await q
-  if (error) throw error
-  return (data || []).map(normalizeUserRow)
+  const data = await requestJson(`/api/admin/users${queryString({ search })}`)
+  return (data.users || []).map(normalizeUserRow)
 }
 
 export async function getUser(id) {
-  const { data, error } = await supabase.from('users').select('*').eq('id', id).single()
-  if (error) throw error
-  return normalizeUserRow(data)
+  const data = await requestJson(`/api/admin/users/${encodeURIComponent(id)}`)
+  return normalizeUserRow(data.user)
 }
 
 export async function getUserByDouyuId(douyuId) {
-  const { data, error } = await supabase
-    .from('users')
-    .select('*')
-    .eq('douyu_uid', douyuId)
-    .maybeSingle()
-  if (error) throw error
-  return normalizeUserRow(data)
+  const data = await requestJson(`/api/admin/users/by-douyu/${encodeURIComponent(douyuId)}`)
+  return normalizeUserRow(data.user)
 }
 
 export async function updateUser(id, payload) {
-  const { data, error } = await supabase.from('users').update(payload).eq('id', id).select().single()
-  if (error) throw error
-  return normalizeUserRow(data)
+  const data = await requestJson(`/api/admin/users/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  })
+  return normalizeUserRow(data.user)
 }
 
 export async function blacklistUser(id, isBlacklisted) {
@@ -78,11 +63,10 @@ export async function blacklistUser(id, isBlacklisted) {
 }
 
 export async function deleteUser(id) {
-  const { error } = await supabase.from('users').delete().eq('id', id)
-  if (error) throw error
+  await requestJson(`/api/admin/users/${encodeURIComponent(id)}`, { method: 'DELETE' })
 }
 
-export async function saveDouyuUserProfile(payload, adminAuth = {}) {
+export async function saveDouyuUserProfile(payload) {
   const body = {
     id: payload.id || null,
     douyu_uid: String(payload.douyu_uid || '').trim(),
@@ -91,12 +75,9 @@ export async function saveDouyuUserProfile(payload, adminAuth = {}) {
     douyu_level: Number(payload.douyu_level || 0) || 0,
     douyu_badge_name: String(payload.douyu_badge_name || '').trim(),
     douyu_badge_level: Number(payload.douyu_badge_level || 0) || 0,
-    adminUsername: String(adminAuth.adminUsername || '').trim(),
-    adminPassword: String(adminAuth.adminPassword || ''),
   }
   if (!body.douyu_uid) throw new Error('斗鱼 UID 不能为空')
   if (!body.douyu_nickname) throw new Error('斗鱼昵称不能为空')
-  if (!body.adminUsername || !body.adminPassword) throw new Error('管理员账号未登录，无法保存')
   const data = await requestJson('/api/admin/users/douyu-profile', {
     method: 'POST',
     body: JSON.stringify(body),
@@ -104,62 +85,45 @@ export async function saveDouyuUserProfile(payload, adminAuth = {}) {
   return normalizeUserRow(data.user)
 }
 
-// 根据斗鱼ID 获取或创建用户（兼容旧逻辑，可用于简单登录）
-export async function getOrCreateUser(douyuId, nickname = null) {
-  if (!douyuId) throw new Error('斗鱼ID 不能为空')
-  const existing = await getUserByDouyuId(douyuId)
-  if (existing) {
-    await supabase.from('users').update({ last_login_at: new Date().toISOString() }).eq('id', existing.id)
-    return existing
-  }
-  const { data, error } = await supabase
-    .from('users')
-    .insert({
-      douyu_uid: douyuId,
-      douyu_nickname: nickname || douyuId,
-      douyu_level: 0,
-      is_blacklisted: false,
-      last_login_at: new Date().toISOString(),
-    })
-    .select()
-    .single()
-  if (error) throw error
-  return normalizeUserRow(data)
+// 旧弹窗兼容：当前正式登录必须走 /bind 绑定，不再允许前端手工创建斗鱼用户。
+export async function getOrCreateUser() {
+  throw new Error('请使用“绑定斗鱼”完成账号绑定后再登录')
+}
+
+export function setCurrentUser(user) {
+  window.localStorage.setItem('bounty_legacy_user', JSON.stringify(user || null))
 }
 
 // =========================================================
 // 配置（Settings）
 // =========================================================
 export async function getSetting(key, defaultValue = null) {
-  const { data, error } = await supabase.from('settings').select('*').eq('key', key).maybeSingle()
-  if (error) throw error
-  if (!data) return defaultValue
-  if (data.value == null || data.value === '') return defaultValue
-  if (!Number.isNaN(Number(data.value))) return Number(data.value)
-  return data.value
+  const data = await requestJson(`/api/settings/${encodeURIComponent(key)}`)
+  const value = data.value
+  if (value == null || value === '') return defaultValue
+  if (!Number.isNaN(Number(value))) return Number(value)
+  return value
 }
 
 export async function setSetting(key, value) {
-  const { error } = await supabase
-    .from('settings')
-    .upsert({ key, value: String(value), updated_at: new Date().toISOString() })
-  if (error) throw error
+  await requestJson(`/api/admin/settings/${encodeURIComponent(key)}`, {
+    method: 'PUT',
+    body: JSON.stringify({ value: String(value) }),
+  })
 }
 
 export async function listSettings() {
-  const { data, error } = await supabase.from('settings').select('*').order('key', { ascending: true })
-  if (error) throw error
-  return data || []
+  const data = await requestJson('/api/admin/settings')
+  return data.settings || []
 }
 
 export async function upsertSetting(payload) {
-  const { data, error } = await supabase.from('settings').upsert(payload).select().single()
-  if (error) throw error
-  return data
+  await setSetting(payload.key, payload.value)
+  return payload
 }
 
 // =========================================================
-// 当前用户（由服务器 session 维护，这里仅提供权限判断工具）
+// 当前用户权限
 // =========================================================
 export async function checkCurrentUserPermission(currentUser) {
   if (!currentUser?.id) {
@@ -183,92 +147,47 @@ export async function checkCurrentUserPermission(currentUser) {
 // =========================================================
 // 挑战（Challenges）
 // =========================================================
-export async function listChallenges({ includeHidden = true } = {}) {
-  let q = supabase.from('challenges').select('*')
-  if (!includeHidden) q = q.eq('is_hidden', false)
-  const { data, error } = await q.order('created_at', { ascending: false })
-  if (error) throw error
-  return data || []
+export async function listChallenges({ includeHidden = true, showAllHidden = false } = {}) {
+  const data = await requestJson(`/api/challenges${queryString({ includeHidden: includeHidden ? '1' : '0', showAllHidden: showAllHidden ? '1' : '0' })}`)
+  return data.challenges || []
 }
 
-// 拉所有主任务 + 它们的隐藏子任务，按 active 优先、completed 靠后排
-// currentUserId 传入时，hidden_challenges 字段只包含该用户可见的隐藏任务
-export async function listMainChallengesWithHidden({ currentUserId = null, showAllHidden = false } = {}) {
-  const { data: mains, error: e1 } = await supabase
-    .from('challenges')
-    .select('*')
-    .is('parent_challenge_id', null)
-    .order('created_at', { ascending: false })
-  if (e1) throw e1
-  if (!mains || mains.length === 0) return []
-
-  const ids = mains.map(c => c.id)
-  const { data: hiddens, error: e2 } = await supabase
-    .from('challenges')
-    .select('*')
-    .in('parent_challenge_id', ids)
-    .order('created_at', { ascending: true })
-  if (e2) throw e2
-
-  const visibleHiddens = showAllHidden
-    ? (hiddens || [])
-    : (hiddens || []).filter(h => {
-        if (!currentUserId) return false
-        if (h.created_by === currentUserId) return true
-        const main = mains.find(m => m.id === h.parent_challenge_id)
-        if (main && main.created_by === currentUserId) return true
-        return false
-      })
-
-  const combined = mains.map(m => ({
-    ...m,
-    hidden_challenges: visibleHiddens.filter(h => h.parent_challenge_id === m.id),
-    hidden_total_count: (hiddens || []).filter(h => h.parent_challenge_id === m.id).length,
-  }))
-
-  return combined.sort((a, b) => {
-    const order = { active: 0, completed: 1, cancelled: 2 }
-    const oa = order[a.status] ?? 9
-    const ob = order[b.status] ?? 9
-    if (oa !== ob) return oa - ob
-    return new Date(b.created_at) - new Date(a.created_at)
-  })
+export async function listMainChallengesWithHidden({ showAllHidden = false } = {}) {
+  const data = await requestJson(`/api/challenges/with-hidden${queryString({ showAllHidden: showAllHidden ? '1' : '0' })}`)
+  return data.challenges || []
 }
 
 export async function getChallenge(id) {
-  const { data, error } = await supabase.from('challenges').select('*').eq('id', id).single()
-  if (error) throw error
-  return data
+  const data = await requestJson(`/api/challenges/${encodeURIComponent(id)}`)
+  return data.challenge
 }
 
 export async function createChallenge(payload) {
-  const { data, error } = await supabase.from('challenges').insert(payload).select().single()
-  if (error) throw error
-  return data
+  const data = await requestJson('/api/challenges', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+  return data.challenge
 }
 
 export async function updateChallenge(id, payload) {
-  const { data, error } = await supabase.from('challenges').update(payload).eq('id', id).select().single()
-  if (error) throw error
-  return data
+  const data = await requestJson(`/api/challenges/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  })
+  return data.challenge
 }
 
 export async function deleteChallenge(id) {
-  const { error } = await supabase.from('challenges').delete().eq('id', id)
-  if (error) throw error
+  await requestJson(`/api/challenges/${encodeURIComponent(id)}`, { method: 'DELETE' })
 }
 
 // =========================================================
 // 跟单（Follow Orders）
 // =========================================================
 export async function listFollowOrders(challengeId) {
-  const { data, error } = await supabase
-    .from('follow_orders')
-    .select('*')
-    .eq('challenge_id', challengeId)
-    .order('created_at', { ascending: true })
-  if (error) throw error
-  return data || []
+  const data = await requestJson(`/api/challenges/${encodeURIComponent(challengeId)}/follow-orders`)
+  return data.followOrders || []
 }
 
 export async function aggregateFollowOrders(challengeId) {
@@ -281,14 +200,15 @@ export async function aggregateFollowOrders(challengeId) {
 }
 
 export async function createFollowOrder(payload) {
-  const { data, error } = await supabase.from('follow_orders').insert(payload).select().single()
-  if (error) throw error
-  return data
+  const data = await requestJson('/api/follow-orders', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+  return data.followOrder
 }
 
 export async function deleteFollowOrder(id) {
-  const { error } = await supabase.from('follow_orders').delete().eq('id', id)
-  if (error) throw error
+  await requestJson(`/api/follow-orders/${encodeURIComponent(id)}`, { method: 'DELETE' })
 }
 
 // =========================================================

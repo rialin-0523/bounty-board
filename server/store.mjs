@@ -191,37 +191,55 @@ export async function completeBindSession(id, { username, password }) {
 
   const saltHash = makePasswordHash(password)
   const usernameNormalized = normalizeUsername(username)
-  const insertResult = await supabase
-    .from('users')
-    .insert({
-      username: String(username || '').trim(),
-      username_normalized: usernameNormalized,
-      password_salt: saltHash.salt,
-      password_hash: saltHash.hash,
-      douyu_uid: douyuUid,
-      douyu_nickname: douyuName,
-      douyu_avatar: String(bindRow.matched_avatar || '').trim(),
-      douyu_level: bindRow.matched_level ?? null,
-      douyu_badge_name: String(bindRow.matched_badge_name || '').trim(),
-      douyu_badge_level: bindRow.matched_badge_level ?? 0,
-      bind_session_id: bindRow.id,
-      is_blacklisted: false,
-      created_at: nowIso(),
-      updated_at: nowIso(),
-    })
-    .select('*')
-    .single()
-  if (insertResult.error) {
-    if (insertResult.error.code === '23505' && /username/i.test(insertResult.error.message || '')) throw new Error('这个用户名已经被使用')
-    if (insertResult.error.code === '23505' && /douyu/i.test(insertResult.error.message || '')) throw new Error('这个斗鱼账号已经绑定过')
-    throw insertResult.error
+  const userPayload = {
+    username: String(username || '').trim(),
+    username_normalized: usernameNormalized,
+    password_salt: saltHash.salt,
+    password_hash: saltHash.hash,
+    douyu_uid: douyuUid,
+    douyu_nickname: douyuName,
+    douyu_avatar: String(bindRow.matched_avatar || '').trim(),
+    douyu_level: bindRow.matched_level ?? null,
+    douyu_badge_name: String(bindRow.matched_badge_name || '').trim(),
+    douyu_badge_level: bindRow.matched_badge_level ?? 0,
+    bind_session_id: bindRow.id,
+    updated_at: nowIso(),
+  }
+
+  const existingUserResult = await supabase.from('users').select('*').eq('douyu_uid', douyuUid).maybeSingle()
+  if (existingUserResult.error) throw existingUserResult.error
+  const existingUser = existingUserResult.data || null
+  if (existingUser && (existingUser.username_normalized || existingUser.password_hash || existingUser.password_salt)) {
+    throw new Error('这个斗鱼账号已经绑定过')
+  }
+
+  const saveUserResult = existingUser
+    ? await supabase
+      .from('users')
+      .update(userPayload)
+      .eq('id', existingUser.id)
+      .select('*')
+      .single()
+    : await supabase
+      .from('users')
+      .insert({
+        ...userPayload,
+        is_blacklisted: false,
+        created_at: nowIso(),
+      })
+      .select('*')
+      .single()
+  if (saveUserResult.error) {
+    if (saveUserResult.error.code === '23505' && /username/i.test(saveUserResult.error.message || '')) throw new Error('这个用户名已经被使用')
+    if (saveUserResult.error.code === '23505' && /douyu/i.test(saveUserResult.error.message || '')) throw new Error('这个斗鱼账号已经绑定过')
+    throw saveUserResult.error
   }
 
   const sessionToken = makeSessionToken()
   const sessionResult = await supabase
     .from('auth_sessions')
     .insert({
-      user_id: insertResult.data.id,
+      user_id: saveUserResult.data.id,
       session_token_hash: hashToken(sessionToken),
       expires_at: new Date(Date.now() + 1000 * 60 * 60 * 24 * 90).toISOString(),
       created_at: nowIso(),
@@ -231,18 +249,19 @@ export async function completeBindSession(id, { username, password }) {
     .single()
   if (sessionResult.error) throw sessionResult.error
 
-  await supabase.from('users').update({ last_login_at: nowIso(), updated_at: nowIso() }).eq('id', insertResult.data.id)
+  const lastLoginAt = nowIso()
+  await supabase.from('users').update({ last_login_at: lastLoginAt, updated_at: lastLoginAt }).eq('id', saveUserResult.data.id)
   const completeResult = await supabase
     .from('bind_sessions')
-    .update({ status: 'completed', completed_at: nowIso(), user_id: insertResult.data.id, updated_at: nowIso() })
+    .update({ status: 'completed', completed_at: nowIso(), user_id: saveUserResult.data.id, updated_at: nowIso() })
     .eq('id', bindRow.id)
     .select('*')
     .single()
   if (completeResult.error) throw completeResult.error
 
   return {
-    user: userShape(insertResult.data),
-    session: sessionShape(sessionResult.data, insertResult.data),
+    user: userShape({ ...saveUserResult.data, last_login_at: lastLoginAt }),
+    session: sessionShape(sessionResult.data, saveUserResult.data),
     token: sessionToken,
     bind: bindShape(completeResult.data),
   }
@@ -376,9 +395,17 @@ export async function upsertUserDouyuProfile(payload) {
     return userShape(result.data)
   }
 
+  const existingResult = await supabase.from('users').select('*').eq('douyu_uid', douyuUid).maybeSingle()
+  if (existingResult.error) throw existingResult.error
+  if (existingResult.data) {
+    result = await supabase.from('users').update(row).eq('id', existingResult.data.id).select('*').maybeSingle()
+    if (result.error) throw result.error
+    return userShape(result.data)
+  }
+
   result = await supabase
     .from('users')
-    .upsert({
+    .insert({
       ...row,
       username: payload?.username ? String(payload.username).trim() : null,
       username_normalized: payload?.username ? normalizeUsername(payload.username) : null,
@@ -388,7 +415,7 @@ export async function upsertUserDouyuProfile(payload) {
       bind_session_id: payload?.bind_session_id || null,
       last_login_at: payload?.last_login_at || null,
       created_at: payload?.created_at || nowIso(),
-    }, { onConflict: 'douyu_uid' })
+    })
     .select('*')
     .maybeSingle()
   if (result.error) throw result.error

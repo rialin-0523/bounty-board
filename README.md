@@ -11,7 +11,7 @@
 
 - 首页展示悬赏令列表，支持按状态 / 礼物 / 关键词筛选
 - 任务详情页：看任务信息、跟单记录、隐藏任务、标记完成、添加隐藏任务
-- 发布页：创建主任务或隐藏任务，并写入 `created_by`
+- 发布页：创建主任务或隐藏任务，普通用户的老板信息由后端从登录态自动写入 `boss_id` / `created_by`
 - 后台页：任务 CRUD、跟单管理、用户管理、配置管理；用户管理支持通过后端接口手动修正斗鱼资料
 - 斗鱼绑定页：生成识别码、等待弹幕命中、回写斗鱼资料、设置用户名和密码；普通前台只读斗鱼资料，不提供手填入口
 - 登录页：用户名密码登录，浏览器可长期保持登录态
@@ -20,22 +20,26 @@
 ## 技术栈
 
 - 前端：React + Vite
-- 后端：Node.js 原生 HTTP 服务 + 斗鱼弹幕监听
+- 后端：Node.js 原生 HTTP API + 独立斗鱼弹幕 Worker
 - 数据库：Supabase PostgreSQL（正式 SQL 数据库）
   - `users` 是当前统一用户表，保存站内账号、斗鱼资料、黑名单和登录记录；斗鱼资料由绑定接口和后台手动接口共同写入。
   - 用户密码不存明文，只存 `scrypt` 哈希和盐。
-  - 登录 Cookie 只给浏览器，数据库只存 token 哈希。
+- 登录 Cookie 只给浏览器，数据库只存 token 哈希。
+- 前端页面不会让普通用户手动填写斗鱼资料或老板身份；即使有人改浏览器请求，后端也会按登录态覆盖普通用户的 `boss_id` / `created_by`。
+- 管理员后台预录入的“只有斗鱼资料、没有用户名密码”的记录，后续可以被同 UID 用户通过弹幕绑定补全为正式账号；后台修正已绑定用户斗鱼资料时不会清空用户名和密码哈希。
 
 ## 核心流程图
 
+### 绑定流程
+
 ```mermaid
 flowchart TD
-  A["用户点击绑定斗鱼"] --> B["后端生成 6 位识别码"]
+  A["用户点击绑定斗鱼"] --> B["API 生成 6 位识别码"]
   B --> C["写入 bind_sessions，2 分钟有效，当天不重复"]
-  C --> D["启动按需斗鱼监听"]
+  C --> D["斗鱼 Worker 发现有效绑定码后启动监听"]
   D --> E["用户用本人斗鱼号发弹幕"]
   E --> F{"弹幕内容是否完全命中有效识别码"}
-  F -- 否 --> D
+  F -- 否 --> X["直接丢弃，不写数据库"]
   F -- 是 --> G["写入斗鱼 UID / 昵称 / 头像 / 等级 / 粉丝牌"]
   G --> H["前端显示斗鱼资料"]
   H --> I["用户设置用户名和密码"]
@@ -43,6 +47,18 @@ flowchart TD
   J --> K["浏览器长期登录"]
   D --> L{"没有有效绑定码"}
   L -- 是 --> M["空闲后自动关闭斗鱼监听"]
+```
+
+### 前后端分离部署
+
+```mermaid
+flowchart LR
+  U["用户浏览器"] --> P["GitHub Pages：xd.miyang.cloud"]
+  P --> A["Node HTTP API：api.xd.miyang.cloud"]
+  A --> DB["Supabase PostgreSQL"]
+  W["独立斗鱼 Worker：TCP 8601"] --> D["斗鱼弹幕服务器"]
+  W --> DB
+  A --> DB
 ```
 
 ## 数据库结构
@@ -77,8 +93,8 @@ flowchart TD
 创建 `.env`：
 
 ```bash
-VITE_SUPABASE_URL=https://srngkjdqufardczwjxxr.supabase.co
-VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
+# GitHub Pages 前端调用 API 的地址；同域部署或本地 Vite proxy 可留空。
+VITE_API_BASE_URL=https://api.xd.miyang.cloud
 
 SUPABASE_URL=https://srngkjdqufardczwjxxr.supabase.co
 SUPABASE_SECRET_KEY=your-supabase-secret-or-service-role-key
@@ -86,16 +102,26 @@ SUPABASE_SECRET_KEY=your-supabase-secret-or-service-role-key
 
 DOUYU_BIND_ROOM_ID=63136
 APP_TIME_ZONE=Asia/Shanghai
-BIND_SERVER_ALLOW_ORIGIN=http://127.0.0.1:5173
+DOUYU_DANMAKU_HOSTS=danmuproxy.douyu.com,openbarrage.douyutv.com
+BIND_SERVER_ALLOW_ORIGIN=https://xd.miyang.cloud,http://127.0.0.1:5173,http://localhost:5173
+BIND_SERVER_BASE_URL=https://api.xd.miyang.cloud
+DOUYU_WORKER_POLL_MS=2000
 DOUYU_BIND_IDLE_STOP_MS=30000
-COOKIE_SECURE=false
+COOKIE_SECURE=true
+COOKIE_SAME_SITE=Lax
+ADMIN_CREDENTIALS=admin1:change-me,admin2:change-me
+ADMIN_SESSION_SECRET=change-me-to-a-long-random-string
 ```
 
 ## 本地启动
 
 ```bash
 npm install
-npm run server
+# 终端 1：启动 HTTP API
+npm run server:api
+# 终端 2：启动斗鱼 Worker
+npm run worker:douyu
+# 终端 3：启动前端开发服务
 npm run dev
 ```
 
@@ -109,6 +135,8 @@ npm run lint
 node --check server/index.mjs
 node --check server/douyu.mjs
 node --check server/store.mjs
+node --check server/data.mjs
+node --check server/worker.mjs
 node --check server/auth.mjs
 ```
 
@@ -118,7 +146,7 @@ node --check server/auth.mjs
 2. 点击生成识别码。
 3. 用斗鱼账号到指定直播间发送该识别码。
 4. 管理员如需补数据或修错，可在后台通过接口手动修正斗鱼资料。
-5. 发布挑战页的“老板信息”会自动读取当前登录用户信息，不再手动输入。
+5. 发布挑战、跟单、添加隐藏任务时，“老板信息”会自动读取当前登录用户信息，不再手动输入。
 6. 页面出现斗鱼 UID、昵称、头像、等级、粉丝牌（头像仅以小缩略图显示）。
 7. 输入用户名和两次密码。
 8. 完成绑定并跳回首页。
@@ -132,18 +160,25 @@ node --check server/auth.mjs
 
 这个功能不能只部署静态前端，因为斗鱼弹幕监听需要常驻 Node 服务。
 
-推荐：
+当前已适配两种部署口径：
 
-- 前台域名：`https://xd.miyang.cloud/`，静态资源可以直接放 GitHub 仓库并同步到服务器发布目录。
+1. **旧口径 / 应急口径**：服务器同时托管前端构建产物和 Node API。
+2. **推荐口径 / 大访问量口径**：GitHub Pages 托管前端，服务器只保留 `api.xd.miyang.cloud` 的 HTTP API 和独立斗鱼 Worker。
+
+推荐生产结构：
+
+- 前台：`https://xd.miyang.cloud/`，由 GitHub Pages 发布 `dist/`。
+- API：`https://api.xd.miyang.cloud/api/...`，由服务器 Nginx 反代到 `127.0.0.1:8788`。
+- 斗鱼监听：独立 `bounty-board-douyu-worker.service`，只在有有效绑定码时连接斗鱼 TCP 8601。
 - 前端顶部不再提供后台管理入口；后台仍可通过直接地址访问。
-- 后端：一台能常驻运行 Node 的服务器。
-- 生产：前台和 `/api` 最好同域反向代理，方便 httpOnly Cookie 稳定生效。
+- 前端不再直接调用 Supabase 表，统一通过 API 访问，隐藏任务可见性和管理员权限由后端兜底。
+- 跨域 GET 请求不要无脑带 `Content-Type: application/json`，否则 GitHub Pages 前台访问 API 会额外触发 CORS 预检，访问量大时会放大后端压力。
 
-当前部署口径是：GitHub 仓库保留前端源码与构建流程，服务器只托管构建后的前端文件和 Node 后端。
+当前仓库已提供 GitHub Pages Actions、CNAME、Nginx 模板和 systemd 模板。正式切换前需要在 GitHub Pages 和 DNS 控制台完成绑定。
 
 > 说明：`xd.miyang.cloud` 已在服务器上通过 DNSPod DNS-01 签发 Let's Encrypt 证书，并配置为 HTTPS-only；`http://xd.miyang.cloud/` 当前直接拒绝连接，不再提供明文 HTTP 页面。
 
-- 2026-09-08 已重新同步生产前端/后端构建，确保超级管理员账号 `苦瓜 / kugua010523` 在生产环境可直接登录后台。
+- 2026-09-08 已重新同步生产前端/后端构建，确保新增超级管理员账号在生产环境可直接登录后台。
 
 
 ### 生产 HTTPS 状态
@@ -163,6 +198,7 @@ node --check server/auth.mjs
 
 - 前台：`https://xd.miyang.cloud/`
 - 后台：`https://xd.miyang.cloud/xiaoyangadmin/`
+- API：`https://api.xd.miyang.cloud/api/health`
 
 
 ### 页面能打开，但生成识别码失败
@@ -191,3 +227,4 @@ node --check server/auth.mjs
 - `docs/TECHNICAL_HANDOFF.md`
 - `docs/FRIEND_SETUP_SHORT.md`
 - `docs/SQL_DATABASE.md`
+- `docs/GITHUB_PAGES_API_WORKER_SPLIT.md`

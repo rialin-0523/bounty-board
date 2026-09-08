@@ -17,13 +17,8 @@ import {
   GIFT_TYPES,
   GIFT_ICONS,
 } from './lib/api'
+import { adminLogin, adminLogout, getAdminMe } from './lib/authApi'
 import './Admin.css'
-
-const ADMIN_CREDENTIALS = [
-  { username: 'yjw1018594399', password: '13142@yjW' },
-  { username: '苦瓜', password: 'kugua010523' },
-]
-const ADMIN_SESSION_KEY = 'bounty_admin_authed'
 
 const emptyChallenge = {
   boss_id: '',
@@ -43,10 +38,8 @@ const emptyFollow = {
 }
 
 function Admin() {
-  const [authenticated, setAuthenticated] = useState(() => {
-    if (typeof window === 'undefined') return false
-    return window.localStorage.getItem(ADMIN_SESSION_KEY) === '1'
-  })
+  const [authenticated, setAuthenticated] = useState(false)
+  const [checkingAdminAuth, setCheckingAdminAuth] = useState(true)
   const [account, setAccount] = useState('')
   const [password, setPassword] = useState('')
   const [activeTab, setActiveTab] = useState('challenges')
@@ -76,13 +69,23 @@ function Admin() {
   const [followForm, setFollowForm] = useState(emptyFollow)
 
   useEffect(() => {
-    if (typeof window === 'undefined') return
-    if (authenticated) {
-      window.localStorage.setItem(ADMIN_SESSION_KEY, '1')
-    } else {
-      window.localStorage.removeItem(ADMIN_SESSION_KEY)
+    let cancelled = false
+    ;(async () => {
+      try {
+        const data = await getAdminMe()
+        if (cancelled) return
+        setAuthenticated(Boolean(data.admin))
+        if (data.admin?.username) setAccount(data.admin.username)
+      } catch {
+        if (!cancelled) setAuthenticated(false)
+      } finally {
+        if (!cancelled) setCheckingAdminAuth(false)
+      }
+    })()
+    return () => {
+      cancelled = true
     }
-  }, [authenticated])
+  }, [])
 
   const loadAllFollowOrders = useCallback(async () => {
     const all = await listChallenges()
@@ -116,6 +119,12 @@ function Admin() {
       setLoading(false)
     }
   }, [loadAllFollowOrders])
+
+  useEffect(() => {
+    if (!authenticated) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchData()
+  }, [authenticated, fetchData])
 
   const searchUsers = useCallback(async (q) => {
     setUserSearch(q)
@@ -159,16 +168,10 @@ function Admin() {
     }
     setSavingManualUser(true)
     try {
-      await saveDouyuUserProfile(
-        {
-          id: manualUserId || null,
-          ...manualDouyuForm,
-        },
-        {
-          adminUsername: account.trim() || ADMIN_USERNAME,
-          adminPassword: password || ADMIN_PASSWORD,
-        },
-      )
+      await saveDouyuUserProfile({
+        id: manualUserId || null,
+        ...manualDouyuForm,
+      })
       alert('斗鱼资料已保存')
       await fetchData()
       openManualUserForm(null)
@@ -186,18 +189,21 @@ function Admin() {
     }))
   }
 
-  function handleLogin(e) {
+  async function handleLogin(e) {
     e.preventDefault()
-    const matched = ADMIN_CREDENTIALS.some(item => item.username === account.trim() && item.password === password)
-    if (matched) {
+    try {
+      const data = await adminLogin({ username: account.trim(), password })
       setAuthenticated(true)
+      setAccount(data.admin?.username || account.trim())
+      setPassword('')
       fetchData()
-    } else {
+    } catch {
       alert('账号或密码错误')
     }
   }
 
-  function handleLogout() {
+  async function handleLogout() {
+    await adminLogout().catch(() => {})
     setAuthenticated(false)
     setAccount('')
     setPassword('')
@@ -329,6 +335,10 @@ function Admin() {
     } finally {
       setSavingSetting(false)
     }
+  }
+
+  if (checkingAdminAuth) {
+    return <div className="admin-loading">正在检查管理员登录状态...</div>
   }
 
   if (!authenticated) {

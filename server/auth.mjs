@@ -37,28 +37,36 @@ export function isValidPassword(value) {
   return text.length >= 8 && text.length <= 64 && /^[\x21-\x7E]+$/.test(text) && /[A-Za-z]/.test(text) && /\d/.test(text)
 }
 
-export function cookieHeader(token, { maxAgeSeconds = COOKIE_MAX_AGE_SECONDS, secure = false } = {}) {
+function normalizeSameSite(value) {
+  const text = String(value || 'Lax').trim()
+  if (/^none$/i.test(text)) return 'None'
+  if (/^strict$/i.test(text)) return 'Strict'
+  return 'Lax'
+}
+
+export function serializeCookie(name, value, { maxAgeSeconds = COOKIE_MAX_AGE_SECONDS, secure = false, sameSite = 'Lax', domain = '' } = {}) {
   const parts = [
-    `${SESSION_COOKIE}=${encodeURIComponent(token)}`,
+    `${name}=${encodeURIComponent(value || '')}`,
     'Path=/',
     'HttpOnly',
-    'SameSite=Lax',
+    `SameSite=${normalizeSameSite(sameSite)}`,
     `Max-Age=${maxAgeSeconds}`,
   ]
+  if (domain) parts.push(`Domain=${domain}`)
   if (secure) parts.push('Secure')
   return parts.join('; ')
 }
 
-export function clearCookieHeader({ secure = false } = {}) {
-  const parts = [
-    `${SESSION_COOKIE}=`,
-    'Path=/',
-    'HttpOnly',
-    'SameSite=Lax',
-    'Max-Age=0',
-  ]
-  if (secure) parts.push('Secure')
-  return parts.join('; ')
+export function clearCookie(name, { secure = false, sameSite = 'Lax', domain = '' } = {}) {
+  return serializeCookie(name, '', { maxAgeSeconds: 0, secure, sameSite, domain })
+}
+
+export function cookieHeader(token, options = {}) {
+  return serializeCookie(SESSION_COOKIE, token, options)
+}
+
+export function clearCookieHeader(options = {}) {
+  return clearCookie(SESSION_COOKIE, options)
 }
 
 export function parseCookieHeader(headerValue = '') {

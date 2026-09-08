@@ -8,7 +8,9 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "server": "node --env-file-if-exists=.env server/index.mjs"
+    "server": "node --env-file-if-exists=.env server/index.mjs",
+    "server:api": "node --env-file-if-exists=.env server/index.mjs",
+    "worker:douyu": "node --env-file-if-exists=.env server/worker.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.106.1",

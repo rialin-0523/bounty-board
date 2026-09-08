@@ -14,6 +14,14 @@ function unescapeValue(value) {
   return String(value ?? '').replace(/@S/g, '/').replace(/@A/g, '@')
 }
 
+function pickUid(message) {
+  for (const key of ['uid', 'userid', 'user_id', 'senderUid', 'sender_uid', 'sender', 'suid', 'id']) {
+    const value = compactText(message?.[key])
+    if (/^\d{5,}$/.test(value)) return value
+  }
+  return compactText(message?.uid || message?.senderUid || message?.sender_uid)
+}
+
 export function parseDouyuMessage(raw) {
   const item = {}
   for (const part of String(raw || '').trim().replace(/\0+$/g, '').replace(/^\/+|\/+$/g, '').split('/')) {
@@ -82,11 +90,22 @@ function parseMaybeInt(value) {
 export function normalizeAvatarUrl(value) {
   const text = compactText(value).replace(/@S/g, '/').replace(/@A/g, '@')
   if (!text) return ''
-  if (/^https?:\/\//i.test(text)) return text.replace(/^http:\/\//i, 'https://')
-  if (text.startsWith('//')) return `https:${text}`
-  if (text.startsWith('/')) return `https://apic.douyucdn.cn${text}`
+  const toSmallDouyuAvatar = url => {
+    const normalized = url.replace(/_(?:big|middle|small)\.(jpg|jpeg|png|webp)(\?.*)?$/i, '_small.$1$2')
+    if (/\/upload\/avatar_v\d+\//i.test(normalized) && !/\.(jpg|jpeg|png|webp|gif)(\?.*)?$/i.test(normalized)) {
+      return `${normalized.replace(/\/+$/, '')}_small.jpg`
+    }
+    return normalized
+  }
+  if (/^https?:\/\//i.test(text)) return toSmallDouyuAvatar(text.replace(/^http:\/\//i, 'https://'))
+  if (text.startsWith('//')) return toSmallDouyuAvatar(`https:${text}`)
+  if (/^\/?upload\/avatar_v\d+\//i.test(text) || /^\/?avatar_v\d+\//i.test(text)) {
+    const clean = text.replace(/^\/+/, '').replace(/^upload\//i, '').replace(/(?:_(?:big|middle|small))?\.(jpg|jpeg|png|webp)$/i, '')
+    return `https://apic.douyucdn.cn/upload/${clean}_small.jpg`
+  }
+  if (text.startsWith('/')) return toSmallDouyuAvatar(`https://apic.douyucdn.cn${text}`)
   if (/^[\w./-]+\.(?:jpg|jpeg|png|webp|gif)(?:\?.*)?$/i.test(text)) {
-    return `https://apic.douyucdn.cn/${text.replace(/^\/+/, '')}`
+    return toSmallDouyuAvatar(`https://apic.douyucdn.cn/${text.replace(/^\/+/, '')}`)
   }
   return ''
 }
@@ -94,10 +113,10 @@ export function normalizeAvatarUrl(value) {
 export function extractProfileFields(message, now = Date.now()) {
   return {
     roomId: String(message.roomId || message.room_id || message.rid || ''),
-    uid: String(message.uid || message.senderUid || message.sender_uid || ''),
+    uid: pickUid(message),
     name: String(message.nn || message.name || message.nick || message.displayName || message.uname || '').trim(),
-    level: parseMaybeInt(message.level ?? message.lv ?? message.ul),
-    avatar: normalizeAvatarUrl(message.avatar || message.face || message.avatarUrl || ''),
+    level: parseMaybeInt(message.level ?? message.lv ?? message.ul ?? message.ulevel),
+    avatar: normalizeAvatarUrl(message.ic || message.icon || message.avatar || message.face || message.avatarUrl || ''),
     badgeName: String(message.badgeName || message.badge || message.bnn || '').trim(),
     badgeLevel: parseMaybeInt(message.badgeLevel ?? message.badgeLv ?? message.bl) ?? 0,
     messageTime: parseMaybeInt(message.time ?? message.ts ?? now) ?? now,

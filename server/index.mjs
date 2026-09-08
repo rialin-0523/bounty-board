@@ -1,48 +1,111 @@
 import http from 'node:http'
-import { DOUYU_BIND_ROOM_ID, localDateKey, nowIso, supabaseAdmin } from './config.mjs'
-import { clearCookieHeader, cookieHeader, parseCookieHeader, SESSION_COOKIE, isValidPassword, isValidUsername } from './auth.mjs'
-import { DouyuDanmakuClient, generateBindCode, normalizeBindCodeText } from './douyu.mjs'
+import { createHmac, timingSafeEqual } from 'node:crypto'
+import { DOUYU_BIND_ROOM_ID, localDateKey, nowIso, supabaseAdmin, SUPABASE_SERVICE_ROLE_KEY } from './config.mjs'
+import { clearCookie, clearCookieHeader, cookieHeader, parseCookieHeader, serializeCookie, SESSION_COOKIE, isValidPassword, isValidUsername } from './auth.mjs'
+import { generateBindCode } from './douyu.mjs'
 import {
   completeBindSession,
   createBindSessionWithRetry,
-  findDouyuProfile,
   getBindSession,
   getUserBySessionToken,
-  listActiveBindSessions,
   loginWithUsernamePassword,
-  markBindSessionMatched,
   refreshExpiredBindSessions,
   revokeSessionToken,
-  upsertDouyuProfile,
   upsertUserDouyuProfile,
 } from './store.mjs'
+import {
+  checkUserPermission,
+  createChallengeRow,
+  createFollowOrderRow,
+  deleteChallengeRow,
+  deleteFollowOrderRow,
+  deleteUserRow,
+  getBooleanParam,
+  getChallengeRow,
+  getSettingValue,
+  getUserByDouyuUid,
+  getUserRow,
+  listChallengeRows,
+  listFollowOrderRows,
+  listMainChallengesWithHiddenRows,
+  listSettingsRows,
+  listUserRows,
+  setSettingValue,
+  updateChallengeRow,
+  updateUserRow,
+} from './data.mjs'
 
 const PORT = Number(process.env.PORT || 8788)
 const COOKIE_SECURE = String(process.env.COOKIE_SECURE || '').toLowerCase() === 'true'
+const COOKIE_SAME_SITE = process.env.COOKIE_SAME_SITE || 'Lax'
+const COOKIE_DOMAIN = process.env.COOKIE_DOMAIN || ''
 const BASE_URL = process.env.BIND_SERVER_BASE_URL || `http://127.0.0.1:${PORT}`
-const ALLOW_ORIGIN = process.env.BIND_SERVER_ALLOW_ORIGIN || 'http://127.0.0.1:5173'
-const ADMIN_CREDENTIALS = [
-  { username: process.env.ADMIN_USERNAME || 'yjw1018594399', password: process.env.ADMIN_PASSWORD || '13142@yjW' },
-  { username: '苦瓜', password: 'kugua010523' },
-]
+const ALLOW_ORIGINS = (process.env.BIND_SERVER_ALLOW_ORIGIN || 'http://127.0.0.1:5173,http://localhost:5173,https://xd.miyang.cloud')
+  .split(',')
+  .map(item => item.trim())
+  .filter(Boolean)
 const BIND_TTL_MS = 120_000
-const LISTENER_IDLE_STOP_MS = Number(process.env.DOUYU_BIND_IDLE_STOP_MS || 30_000)
-const CACHE_REFRESH_MS = 2_000
+const ADMIN_COOKIE = 'bounty_admin_auth'
+const ADMIN_SESSION_TTL_SECONDS = Number(process.env.ADMIN_SESSION_TTL_SECONDS || 60 * 60 * 12)
+const ADMIN_SESSION_SECRET = process.env.ADMIN_SESSION_SECRET || SUPABASE_SERVICE_ROLE_KEY || ''
+const ADMIN_CREDENTIALS = loadAdminCredentials()
 
-let bindClient = null
-let bindCache = []
-let refreshTimer = null
-let idleStopTimer = null
+function loadAdminCredentials() {
+  const out = []
+  if (process.env.ADMIN_CREDENTIALS_JSON) {
+    try {
+      const parsed = JSON.parse(process.env.ADMIN_CREDENTIALS_JSON)
+      if (Array.isArray(parsed)) {
+        parsed.forEach(item => {
+          if (item?.username && item?.password) out.push({ username: String(item.username), password: String(item.password) })
+        })
+      }
+    } catch (err) {
+      console.warn('[api] ADMIN_CREDENTIALS_JSON 解析失败:', err.message || err)
+    }
+  }
+  if (process.env.ADMIN_CREDENTIALS) {
+    process.env.ADMIN_CREDENTIALS.split(',').forEach(pair => {
+      const index = pair.indexOf(':')
+      if (index <= 0) return
+      const username = pair.slice(0, index).trim()
+      const password = pair.slice(index + 1)
+      if (username && password) out.push({ username, password })
+    })
+  }
+  if (process.env.ADMIN_USERNAME && process.env.ADMIN_PASSWORD) {
+    out.push({ username: process.env.ADMIN_USERNAME, password: process.env.ADMIN_PASSWORD })
+  }
+  return out
+}
 
-function json(res, status, data, headers = {}) {
+function cookieOptions() {
+  return { secure: COOKIE_SECURE, sameSite: COOKIE_SAME_SITE, domain: COOKIE_DOMAIN }
+}
+
+function allowedOrigin(req) {
+  const origin = String(req.headers.origin || '')
+  if (!origin) return ALLOW_ORIGINS[0] || '*'
+  if (ALLOW_ORIGINS.includes('*') || ALLOW_ORIGINS.includes(origin)) return origin
+  return ALLOW_ORIGINS[0] || origin
+}
+
+function corsHeaders(req) {
+  return {
+    'Access-Control-Allow-Origin': allowedOrigin(req),
+    'Access-Control-Allow-Credentials': 'true',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
+    'Vary': 'Origin',
+  }
+}
+
+function json(req, res, status, data, headers = {}) {
   const body = JSON.stringify(data)
   res.writeHead(status, {
     'Content-Type': 'application/json; charset=utf-8',
     'Content-Length': Buffer.byteLength(body),
-    'Access-Control-Allow-Origin': ALLOW_ORIGIN,
-    'Access-Control-Allow-Credentials': 'true',
-    'Access-Control-Allow-Headers': 'Content-Type',
-    'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+    ...corsHeaders(req),
     ...headers,
   })
   res.end(body)
@@ -56,21 +119,17 @@ async function readJson(req) {
   return JSON.parse(raw)
 }
 
-function notFound(res) {
-  json(res, 404, { ok: false, reason: 'Not found' })
+function notFound(req, res) {
+  json(req, res, 404, { ok: false, reason: 'Not found' })
 }
 
-function badRequest(res, reason) {
-  json(res, 400, { ok: false, reason })
+function badRequest(req, res, reason) {
+  json(req, res, 400, { ok: false, reason })
 }
 
 function getSessionTokenFromRequest(req) {
   const cookies = parseCookieHeader(req.headers.cookie || '')
   return cookies[SESSION_COOKIE] || ''
-}
-
-function listenerStatus() {
-  return bindClient ? 'active' : 'idle'
 }
 
 function bindSessionResponse(bind) {
@@ -94,257 +153,290 @@ function bindSessionResponse(bind) {
   }
 }
 
-
-function requireSupabaseReady(res) {
+function requireSupabaseReady(req, res) {
   if (supabaseAdmin) return true
-  json(res, 503, {
+  json(req, res, 503, {
     ok: false,
     reason: 'SUPABASE_SECRET_KEY / SUPABASE_SERVICE_ROLE_KEY 未配置，绑定与登录暂不可用',
   })
   return false
 }
 
-function readAdminCredentials(body = {}) {
-  return {
-    username: String(body.adminUsername || body.account || '').trim(),
-    password: String(body.adminPassword || body.password || '').trim(),
-  }
+function matchAdminCredential(username, password) {
+  return ADMIN_CREDENTIALS.some(item => item.username === username && item.password === password)
 }
 
-function requireAdminCredentials(res, body) {
-  const creds = readAdminCredentials(body)
-  const matched = ADMIN_CREDENTIALS.some(item => item.username === creds.username && item.password === creds.password)
-  if (!matched) {
-    json(res, 401, { ok: false, reason: '管理员账号或密码错误' })
-    return false
-  }
-  return true
+function signAdminPayload(payload) {
+  return createHmac('sha256', ADMIN_SESSION_SECRET).update(payload).digest('base64url')
 }
 
-async function refreshBindCache() {
+function makeAdminToken(username) {
+  const payload = Buffer.from(JSON.stringify({ username, exp: Date.now() + ADMIN_SESSION_TTL_SECONDS * 1000 })).toString('base64url')
+  return `${payload}.${signAdminPayload(payload)}`
+}
+
+function readAdminToken(req) {
+  if (!ADMIN_SESSION_SECRET) return null
+  const cookies = parseCookieHeader(req.headers.cookie || '')
+  const token = cookies[ADMIN_COOKIE] || ''
+  const [payload, sig] = token.split('.')
+  if (!payload || !sig) return null
+  const expected = signAdminPayload(payload)
+  const a = Buffer.from(sig)
+  const b = Buffer.from(expected)
+  if (a.length !== b.length || !timingSafeEqual(a, b)) return null
   try {
-    await refreshExpiredBindSessions().catch(() => {})
-    bindCache = await listActiveBindSessions(DOUYU_BIND_ROOM_ID)
-    scheduleIdleStopIfNeeded()
-  } catch (err) {
-    console.error('[bind-server] refresh bind cache failed:', err)
+    const data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'))
+    if (!data.username || Number(data.exp || 0) < Date.now()) return null
+    return { username: String(data.username) }
+  } catch {
+    return null
   }
 }
 
-function startRefreshTimer() {
-  if (!refreshTimer) refreshTimer = setInterval(refreshBindCache, CACHE_REFRESH_MS)
+async function requestContext(req) {
+  const admin = readAdminToken(req)
+  const token = getSessionTokenFromRequest(req)
+  const session = token && supabaseAdmin ? await getUserBySessionToken(token) : null
+  return { admin, isAdmin: Boolean(admin), user: session?.user || null }
 }
 
-function stopRefreshTimer() {
-  if (refreshTimer) clearInterval(refreshTimer)
-  refreshTimer = null
-}
-
-function clearIdleStopTimer() {
-  if (idleStopTimer) clearTimeout(idleStopTimer)
-  idleStopTimer = null
-}
-
-function stopListener(reason = 'idle') {
-  clearIdleStopTimer()
-  stopRefreshTimer()
-  if (bindClient) {
-    console.log(`[douyu] 停止监听：${reason}`)
-    bindClient.stop()
-    bindClient.removeAllListeners()
-    bindClient = null
-  }
-}
-
-function scheduleIdleStopIfNeeded() {
-  if (!bindClient) return
-  const hasActiveBind = bindCache.some(item => item.status === 'pending' || item.status === 'matched')
-  if (hasActiveBind) {
-    clearIdleStopTimer()
-    return
-  }
-  if (idleStopTimer) return
-  idleStopTimer = setTimeout(() => {
-    if (!bindCache.some(item => item.status === 'pending' || item.status === 'matched')) {
-      stopListener('当前没有有效绑定码')
-    }
-  }, LISTENER_IDLE_STOP_MS)
-}
-
-async function handleDouyuChat(payload) {
-  try {
-    await upsertDouyuProfile(payload)
-  } catch (err) {
-    console.warn('[bind-server] profile upsert failed:', err.message || err)
-  }
-
-  const rawCodeText = String(payload.text || '').trim()
-  if (!/^[A-Z0-9]{6}$/i.test(rawCodeText)) return
-  const code = normalizeBindCodeText(rawCodeText)
-  const matched = bindCache.find(item => item.status === 'pending' && normalizeBindCodeText(item.code) === code)
-  if (!matched) return
-  const expiresAt = new Date(matched.expiresAt).getTime()
-  if (Number.isFinite(expiresAt) && expiresAt < Date.now()) return
-
-  const profile = await findDouyuProfile(DOUYU_BIND_ROOM_ID, payload.uid, payload.name)
-  const nextProfile = profile
-    ? {
-        uid: String(profile.uid || payload.uid || ''),
-        name: String(profile.name || payload.name || ''),
-        avatar: String(profile.avatar || payload.avatar || ''),
-        level: profile.level ?? payload.level ?? null,
-        badgeName: String(profile.badge_name || payload.badgeName || ''),
-        badgeLevel: profile.badge_level ?? payload.badgeLevel ?? 0,
-      }
-    : {
-        uid: String(payload.uid || ''),
-        name: String(payload.name || ''),
-        avatar: String(payload.avatar || ''),
-        level: payload.level ?? null,
-        badgeName: String(payload.badgeName || ''),
-        badgeLevel: payload.badgeLevel ?? 0,
-      }
-
-  const updated = await markBindSessionMatched(matched.id, nextProfile, payload.raw)
-  if (updated) {
-    console.log(`[bind-server] matched code ${matched.code} from ${nextProfile.name || nextProfile.uid || 'unknown'}`)
-    await refreshBindCache()
-  }
-}
-
-async function ensureListenerActive() {
-  if (!supabaseAdmin) return false
-  clearIdleStopTimer()
-  await refreshBindCache()
-  if (!bindCache.some(item => item.status === 'pending' || item.status === 'matched')) return false
-  if (bindClient) return true
-
-  bindClient = new DouyuDanmakuClient({ roomId: DOUYU_BIND_ROOM_ID })
-  bindClient.on('status', text => console.log('[douyu]', text))
-  bindClient.on('error', err => console.warn('[douyu]', err.message || err))
-  bindClient.on('chat', payload => {
-    handleDouyuChat(payload).catch(err => console.error('[bind-server] chat handling failed:', err))
-  })
-  bindClient.start()
-  startRefreshTimer()
-  return true
+function requireAdminRequest(req, res, ctx) {
+  if (ctx?.isAdmin) return true
+  json(req, res, 401, { ok: false, reason: '需要超级管理员登录' })
+  return false
 }
 
 async function handleApi(req, res, url) {
   if (req.method === 'OPTIONS') {
-    res.writeHead(204, {
-      'Access-Control-Allow-Origin': ALLOW_ORIGIN,
-      'Access-Control-Allow-Credentials': 'true',
-      'Access-Control-Allow-Headers': 'Content-Type',
-      'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
-    })
+    res.writeHead(204, corsHeaders(req))
     return res.end()
   }
 
   if (url.pathname === '/api/health') {
-    return json(res, 200, {
+    return json(req, res, 200, {
       ok: true,
       roomId: DOUYU_BIND_ROOM_ID,
       hasSupabase: Boolean(supabaseAdmin),
       now: nowIso(),
       dateKey: localDateKey(),
-      listener: listenerStatus(),
-      activeBindCount: bindCache.length,
+      listener: 'external-worker',
+      adminAuthConfigured: ADMIN_CREDENTIALS.length > 0 && Boolean(ADMIN_SESSION_SECRET),
     })
   }
 
+  if (url.pathname === '/api/admin/login' && req.method === 'POST') {
+    if (ADMIN_CREDENTIALS.length === 0 || !ADMIN_SESSION_SECRET) {
+      return json(req, res, 503, { ok: false, reason: '管理员账号未配置' })
+    }
+    const body = await readJson(req)
+    const username = String(body.username || body.account || '').trim()
+    const password = String(body.password || '')
+    if (!matchAdminCredential(username, password)) {
+      return json(req, res, 401, { ok: false, reason: '账号或密码错误' })
+    }
+    res.setHeader('Set-Cookie', serializeCookie(ADMIN_COOKIE, makeAdminToken(username), {
+      ...cookieOptions(),
+      maxAgeSeconds: ADMIN_SESSION_TTL_SECONDS,
+    }))
+    return json(req, res, 200, { ok: true, admin: { username } })
+  }
+
+  if (url.pathname === '/api/admin/me' && req.method === 'GET') {
+    return json(req, res, 200, { ok: true, admin: readAdminToken(req) })
+  }
+
+  if (url.pathname === '/api/admin/logout' && req.method === 'POST') {
+    res.setHeader('Set-Cookie', clearCookie(ADMIN_COOKIE, cookieOptions()))
+    return json(req, res, 200, { ok: true })
+  }
+
+  if (!requireSupabaseReady(req, res)) return
+
   if (url.pathname === '/api/bind/sessions' && req.method === 'POST') {
-    if (!requireSupabaseReady(res)) return
     const body = await readJson(req)
     const roomId = String(body.roomId || DOUYU_BIND_ROOM_ID).trim()
     const expiresAt = new Date(Date.now() + BIND_TTL_MS).toISOString()
     const bind = await createBindSessionWithRetry({ roomId, codeFactory: () => generateBindCode(6), expiresAt, codeDay: localDateKey() })
-    await ensureListenerActive()
-    return json(res, 200, { ok: true, bind, listener: listenerStatus() })
+    return json(req, res, 200, { ok: true, bind, listener: 'external-worker' })
   }
 
   const bindMatch = url.pathname.match(/^\/api\/bind\/sessions\/([^/]+)$/)
   if (bindMatch && req.method === 'GET') {
-    if (!requireSupabaseReady(res)) return
     const bind = await getBindSession(bindMatch[1])
-    if (bind?.status === 'pending' || bind?.status === 'matched') await ensureListenerActive()
-    return json(res, 200, bindSessionResponse(bind))
+    return json(req, res, 200, bindSessionResponse(bind))
   }
 
   const bindCompleteMatch = url.pathname.match(/^\/api\/bind\/sessions\/([^/]+)\/complete$/)
   if (bindCompleteMatch && req.method === 'POST') {
-    if (!requireSupabaseReady(res)) return
     const body = await readJson(req)
-    if (!isValidUsername(body.username)) return badRequest(res, '用户名只能包含中英文，长度 2-20 位')
-    if (!isValidPassword(body.password)) return badRequest(res, '密码需 8-64 位，且包含字母和数字，并只使用可见字符')
-    if (body.password !== body.passwordConfirm) return badRequest(res, '两次输入的密码不一致')
+    if (!isValidUsername(body.username)) return badRequest(req, res, '用户名只能包含中英文，长度 2-20 位')
+    if (!isValidPassword(body.password)) return badRequest(req, res, '密码需 8-64 位，且包含字母和数字，并只使用可见字符')
+    if (body.password !== body.passwordConfirm) return badRequest(req, res, '两次输入的密码不一致')
     const result = await completeBindSession(bindCompleteMatch[1], {
       username: body.username,
       password: body.password,
     })
-    res.setHeader('Set-Cookie', cookieHeader(result.token, { secure: COOKIE_SECURE }))
-    await refreshBindCache()
-    return json(res, 200, { ok: true, user: result.user, bind: result.bind })
+    res.setHeader('Set-Cookie', cookieHeader(result.token, cookieOptions()))
+    return json(req, res, 200, { ok: true, user: result.user, bind: result.bind })
   }
 
   if (url.pathname === '/api/auth/login' && req.method === 'POST') {
-    if (!requireSupabaseReady(res)) return
     const body = await readJson(req)
-    if (!String(body.username || '').trim() || !String(body.password || '')) return badRequest(res, '请填写用户名和密码')
+    if (!String(body.username || '').trim() || !String(body.password || '')) return badRequest(req, res, '请填写用户名和密码')
     const result = await loginWithUsernamePassword({ username: body.username, password: body.password })
-    res.setHeader('Set-Cookie', cookieHeader(result.token, { secure: COOKIE_SECURE }))
-    return json(res, 200, { ok: true, user: result.user })
+    res.setHeader('Set-Cookie', cookieHeader(result.token, cookieOptions()))
+    return json(req, res, 200, { ok: true, user: result.user })
   }
 
   if (url.pathname === '/api/auth/me' && req.method === 'GET') {
-    if (!requireSupabaseReady(res)) return
     const token = getSessionTokenFromRequest(req)
-    if (!token) return json(res, 200, { ok: true, user: null })
+    if (!token) return json(req, res, 200, { ok: true, user: null })
     const result = await getUserBySessionToken(token)
-    return json(res, 200, { ok: true, user: result?.user || null })
+    return json(req, res, 200, { ok: true, user: result?.user || null })
   }
 
   if (url.pathname === '/api/auth/logout' && req.method === 'POST') {
-    if (!requireSupabaseReady(res)) return
     const token = getSessionTokenFromRequest(req)
     if (token) await revokeSessionToken(token)
-    res.setHeader('Set-Cookie', clearCookieHeader({ secure: COOKIE_SECURE }))
-    return json(res, 200, { ok: true })
+    res.setHeader('Set-Cookie', clearCookieHeader(cookieOptions()))
+    return json(req, res, 200, { ok: true })
+  }
+
+  const ctx = await requestContext(req)
+
+  if (url.pathname === '/api/auth/permission' && req.method === 'GET') {
+    return json(req, res, 200, { ok: true, permission: await checkUserPermission(ctx.user) })
+  }
+
+  const settingMatch = url.pathname.match(/^\/api\/settings\/([^/]+)$/)
+  if (settingMatch && req.method === 'GET') {
+    return json(req, res, 200, { ok: true, key: settingMatch[1], value: await getSettingValue(settingMatch[1], null) })
+  }
+
+  if (url.pathname === '/api/admin/settings' && req.method === 'GET') {
+    if (!requireAdminRequest(req, res, ctx)) return
+    return json(req, res, 200, { ok: true, settings: await listSettingsRows() })
+  }
+
+  const adminSettingMatch = url.pathname.match(/^\/api\/admin\/settings\/([^/]+)$/)
+  if (adminSettingMatch && req.method === 'PUT') {
+    if (!requireAdminRequest(req, res, ctx)) return
+    const body = await readJson(req)
+    const row = await setSettingValue(adminSettingMatch[1], body.value)
+    return json(req, res, 200, { ok: true, setting: row })
+  }
+
+  if (url.pathname === '/api/admin/users' && req.method === 'GET') {
+    if (!requireAdminRequest(req, res, ctx)) return
+    return json(req, res, 200, { ok: true, users: await listUserRows({ search: url.searchParams.get('search') || '' }) })
+  }
+
+  const adminUserByDouyuMatch = url.pathname.match(/^\/api\/admin\/users\/by-douyu\/([^/]+)$/)
+  if (adminUserByDouyuMatch && req.method === 'GET') {
+    if (!requireAdminRequest(req, res, ctx)) return
+    return json(req, res, 200, { ok: true, user: await getUserByDouyuUid(decodeURIComponent(adminUserByDouyuMatch[1])) })
+  }
+
+  const adminUserMatch = url.pathname.match(/^\/api\/admin\/users\/([^/]+)$/)
+  if (adminUserMatch && req.method === 'GET') {
+    if (!requireAdminRequest(req, res, ctx)) return
+    return json(req, res, 200, { ok: true, user: await getUserRow(adminUserMatch[1]) })
+  }
+
+  if (adminUserMatch && req.method === 'PATCH') {
+    if (!requireAdminRequest(req, res, ctx)) return
+    const body = await readJson(req)
+    return json(req, res, 200, { ok: true, user: await updateUserRow(adminUserMatch[1], body) })
+  }
+
+  if (adminUserMatch && req.method === 'DELETE') {
+    if (!requireAdminRequest(req, res, ctx)) return
+    await deleteUserRow(adminUserMatch[1])
+    return json(req, res, 200, { ok: true })
   }
 
   if (url.pathname === '/api/admin/users/douyu-profile' && req.method === 'POST') {
-    if (!requireSupabaseReady(res)) return
+    if (!requireAdminRequest(req, res, ctx)) return
     const body = await readJson(req)
-    if (!requireAdminCredentials(res, body)) return
     const user = await upsertUserDouyuProfile(body)
-    return json(res, 200, { ok: true, user })
+    return json(req, res, 200, { ok: true, user })
   }
 
-  notFound(res)
+  if (url.pathname === '/api/challenges/with-hidden' && req.method === 'GET') {
+    const showAllHidden = getBooleanParam(url.searchParams.get('showAllHidden'))
+    return json(req, res, 200, { ok: true, challenges: await listMainChallengesWithHiddenRows({ showAllHidden, ctx }) })
+  }
+
+  if (url.pathname === '/api/challenges' && req.method === 'GET') {
+    const includeHidden = getBooleanParam(url.searchParams.get('includeHidden'), true)
+    const showAllHidden = getBooleanParam(url.searchParams.get('showAllHidden'))
+    return json(req, res, 200, { ok: true, challenges: await listChallengeRows({ includeHidden, showAllHidden, ctx }) })
+  }
+
+  if (url.pathname === '/api/challenges' && req.method === 'POST') {
+    const body = await readJson(req)
+    const challenge = await createChallengeRow(body, ctx)
+    return json(req, res, 200, { ok: true, challenge })
+  }
+
+  const followByChallengeMatch = url.pathname.match(/^\/api\/challenges\/([^/]+)\/follow-orders$/)
+  if (followByChallengeMatch && req.method === 'GET') {
+    const followOrders = await listFollowOrderRows(followByChallengeMatch[1], ctx)
+    return json(req, res, 200, { ok: true, followOrders })
+  }
+
+  const challengeMatch = url.pathname.match(/^\/api\/challenges\/([^/]+)$/)
+  if (challengeMatch && req.method === 'GET') {
+    return json(req, res, 200, { ok: true, challenge: await getChallengeRow(challengeMatch[1], ctx) })
+  }
+
+  if (challengeMatch && req.method === 'PATCH') {
+    const body = await readJson(req)
+    const challenge = await updateChallengeRow(challengeMatch[1], body, ctx)
+    return json(req, res, 200, { ok: true, challenge })
+  }
+
+  if (challengeMatch && req.method === 'DELETE') {
+    if (!requireAdminRequest(req, res, ctx)) return
+    await deleteChallengeRow(challengeMatch[1])
+    return json(req, res, 200, { ok: true })
+  }
+
+  if (url.pathname === '/api/follow-orders' && req.method === 'POST') {
+    const body = await readJson(req)
+    const followOrder = await createFollowOrderRow(body, ctx)
+    return json(req, res, 200, { ok: true, followOrder })
+  }
+
+  const followOrderMatch = url.pathname.match(/^\/api\/follow-orders\/([^/]+)$/)
+  if (followOrderMatch && req.method === 'DELETE') {
+    if (!requireAdminRequest(req, res, ctx)) return
+    await deleteFollowOrderRow(followOrderMatch[1])
+    return json(req, res, 200, { ok: true })
+  }
+
+  notFound(req, res)
 }
 
 const server = http.createServer((req, res) => {
   const url = new URL(req.url || '/', BASE_URL)
   if (url.pathname.startsWith('/api/')) {
     handleApi(req, res, url).catch(err => {
-      console.error('[bind-server]', err)
-      json(res, 500, { ok: false, reason: err.message || '服务器错误' })
+      console.error('[api]', err)
+      json(req, res, 500, { ok: false, reason: err.message || '服务器错误' })
     })
     return
   }
-  json(res, 404, { ok: false, reason: 'Not found' })
+  json(req, res, 404, { ok: false, reason: 'Not found' })
 })
 
 server.listen(PORT, () => {
-  console.log(`[bind-server] listening on ${PORT}`)
-  if (supabaseAdmin) {
-    refreshBindCache().then(ensureListenerActive).catch(err => console.warn('[bind-server] startup refresh failed:', err.message || err))
-  } else {
-    console.warn('[bind-server] listener disabled because SUPABASE_SERVICE_ROLE_KEY is missing')
-  }
+  console.log(`[api] listening on ${PORT}`)
+  if (!supabaseAdmin) console.warn('[api] SUPABASE_SERVICE_ROLE_KEY missing')
+  if (ADMIN_CREDENTIALS.length === 0) console.warn('[api] ADMIN_CREDENTIALS not configured')
 })
 
 process.on('SIGINT', () => {
-  stopListener('server exit')
   server.close(() => process.exit(0))
 })
