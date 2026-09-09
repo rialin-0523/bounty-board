@@ -43,6 +43,12 @@ npm run dev             # 前端开发服务
 - API Nginx 模板在 `deploy/nginx/api.xd.miyang.cloud.conf`。
 - 切完后停用旧的 `bounty-board-bind.service`，避免两个斗鱼监听器同时跑。
 
+2026-09-09 当前状态：
+
+- 服务器侧已经完成：`api.xd.miyang.cloud` DNS、HTTPS、`bounty-board-api.service`、`bounty-board-douyu-worker.service` 都已生效。
+- GitHub Pages 还未完成：当前协作者权限是 `WRITE`，不能替仓库管理员启用 Pages；需要仓库管理员在 Settings → Pages 选择 GitHub Actions，绑定 `xd.miyang.cloud` 并开启 Enforce HTTPS。
+- Pages 未启用前不要把 `xd.miyang.cloud` 的 DNS 从服务器 A 记录切到 GitHub Pages CNAME。
+
 6. 验证 `/bind`：生成识别码，用斗鱼账号发弹幕，完成用户名密码设置。
 
 必须检查 Supabase：

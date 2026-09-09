@@ -71,7 +71,7 @@ npm run worker:douyu
 npm run dev
 ```
 
-推荐生产部署：前台 `https://xd.miyang.cloud/` 由 GitHub Pages 托管，API `https://api.xd.miyang.cloud/api/...` 由服务器 Nginx 反代到 `127.0.0.1:8788`，斗鱼 Worker 独立 systemd 常驻。旧的服务器同域前端部署只作为应急口径。当前服务器已有 `xd.miyang.cloud` HTTPS 证书；正式切 Pages 后还需要为 `api.xd.miyang.cloud` 单独配置 DNS、证书和 Nginx。发布页的老板信息会自动读取登录用户，不再手动输入；前端顶部也不再显示后台管理入口。
+推荐生产部署：前台 `https://xd.miyang.cloud/` 由 GitHub Pages 托管，API `https://api.xd.miyang.cloud/api/...` 由服务器 Nginx 反代到 `127.0.0.1:8788`，斗鱼 Worker 独立 systemd 常驻。旧的服务器同域前端部署只作为应急口径。2026-09-09 已完成服务器侧 API/Worker 拆分部署、`api.xd.miyang.cloud` DNS 和 HTTPS 证书；`https://api.xd.miyang.cloud/api/health` 已可用。前台 `xd.miyang.cloud` 尚未切到 GitHub Pages，因为 Pages 站点还需要仓库管理员在 Settings → Pages 启用 GitHub Actions 发布并绑定自定义域名。发布页的老板信息会自动读取登录用户，不再手动输入；前端顶部也不再显示后台管理入口。
 
 ## 5. 修改后要检查的文件
 
