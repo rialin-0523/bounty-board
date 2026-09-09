@@ -111,8 +111,8 @@
 }
 
 .cb-boss-avatar {
-  width: 40px;
-  height: 40px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   background: #1a1a1a;
   color: #FFD700;
@@ -120,7 +120,7 @@
   align-items: center;
   justify-content: center;
   font-weight: 900;
-  font-size: 1.1rem;
+  font-size: 0.85rem;
   border: 2px solid #FFD700;
   box-shadow: 0 0 0 2px #1a1a1a;
 }

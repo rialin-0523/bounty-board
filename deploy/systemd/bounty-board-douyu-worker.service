@@ -1,0 +1,17 @@
+[Unit]
+Description=Bounty Board Douyu danmaku bind worker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/bounty-board/source
+EnvironmentFile=/etc/bounty-board.env
+ExecStart=/opt/node-v24.14.0-linux-x64/bin/node --env-file-if-exists=/etc/bounty-board.env /opt/bounty-board/source/server/worker.mjs
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

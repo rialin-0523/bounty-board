@@ -79,17 +79,23 @@
   display: flex;
   gap: 8px;
   margin-top: 8px;
+  flex-wrap: wrap;
 }
 
 .login-btn-primary,
 .login-btn-secondary {
   flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   padding: 10px;
   border: none;
   border-radius: 4px;
   font-weight: 700;
   font-size: 0.95rem;
   cursor: pointer;
+  text-align: center;
+  text-decoration: none;
 }
 
 .login-btn-primary {
