@@ -176,6 +176,14 @@ node --check server/auth.mjs
 
 当前仓库已提供 GitHub Pages Actions、CNAME、Nginx 模板和 systemd 模板。正式切换前需要在 GitHub Pages 和 DNS 控制台完成绑定。
 
+2026-09-09 生产阶段状态：
+
+- GitHub `main` 已合并本功能，合并提交 `e698f3b`。
+- 服务器已部署 `main` 同内容代码；旧 `bounty-board-bind.service` 已停用，已改为 `bounty-board-api.service` + `bounty-board-douyu-worker.service` 两个独立进程。
+- `api.xd.miyang.cloud` 已解析到 `111.229.102.231`，HTTPS 证书已签发，`https://api.xd.miyang.cloud/api/health` 可用。
+- `xd.miyang.cloud` 暂时仍解析到服务器旧前台，尚未切到 GitHub Pages；原因是当前 GitHub API 显示 Pages 站点未启用，且当前协作者权限为 `WRITE`，不能代替仓库管理员启用 Pages 设置。
+- 等仓库管理员在 Settings → Pages 里选择 GitHub Actions 并绑定 `xd.miyang.cloud` 后，再把 `xd.miyang.cloud` 的 DNS 从 A 记录切为 GitHub Pages CNAME。
+
 > 说明：`xd.miyang.cloud` 已在服务器上通过 DNSPod DNS-01 签发 Let's Encrypt 证书，并配置为 HTTPS-only；`http://xd.miyang.cloud/` 当前直接拒绝连接，不再提供明文 HTTP 页面。
 
 - 2026-09-08 已重新同步生产前端/后端构建，确保新增超级管理员账号在生产环境可直接登录后台。
@@ -183,13 +191,17 @@ node --check server/auth.mjs
 
 ### 生产 HTTPS 状态
 
-- 证书域名：`xd.miyang.cloud`
-- 证书路径：`/etc/letsencrypt/live/xd.miyang.cloud/fullchain.pem`
-- 私钥路径：`/etc/letsencrypt/live/xd.miyang.cloud/privkey.pem`
-- 到期时间：2026-12-05
+- 前台旧证书域名：`xd.miyang.cloud`
+- 前台旧证书路径：`/etc/letsencrypt/live/xd.miyang.cloud/fullchain.pem`
+- 前台旧私钥路径：`/etc/letsencrypt/live/xd.miyang.cloud/privkey.pem`
+- 前台旧证书到期时间：2026-12-05
+- API 证书域名：`api.xd.miyang.cloud`
+- API 证书路径：`/etc/letsencrypt/live/api.xd.miyang.cloud/fullchain.pem`
+- API 私钥路径：`/etc/letsencrypt/live/api.xd.miyang.cloud/privkey.pem`
+- API 证书到期时间：2026-12-08
 - 签发方式：Let's Encrypt + certbot manual DNS-01 + DNSPod API hook。
-- Nginx 配置：`/etc/nginx/conf.d/xd.miyang.cloud.conf`。
-- 当前策略：HTTPS 正常访问；HTTP 域名访问返回空连接；HTTPS IP 直连走默认拒绝站点，不提供悬赏令页面。
+- Nginx 配置：`/etc/nginx/conf.d/xd.miyang.cloud.conf`、`/etc/nginx/conf.d/api.xd.miyang.cloud.conf`。
+- 当前策略：HTTPS 正常访问；HTTP 域名访问返回空连接；HTTPS IP 直连走默认拒绝站点，不提供悬赏令页面；API 域名只开放 `/api/`。
 - 续期提醒：DNSPod Token 只登记在全局敏感信息文档和服务器 hook 文件中，不能提交到 GitHub。
 
 ## 常见问题

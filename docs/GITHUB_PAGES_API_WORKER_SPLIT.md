@@ -120,6 +120,12 @@ GitHub Pages 设置建议：
 - Custom domain：`xd.miyang.cloud`
 - Enforce HTTPS：开启
 
+当前协作注意：
+
+- 2026-09-09 GitHub `main` 已合并到 `e698f3b`，Actions 构建能开始，但部署阶段返回 `Ensure GitHub Pages has been enabled`。
+- 当前协作者权限是 `WRITE`，不是仓库 `ADMIN`，无法通过 API 代替仓库管理员启用 Pages；需要仓库管理员在 Settings → Pages 里完成启用。
+- Pages 未启用前，不要把 `xd.miyang.cloud` 从服务器 A 记录切到 GitHub Pages CNAME，否则前台会直接黑屏或 404。
+
 DNS 建议：
 
 ```text
@@ -128,6 +134,7 @@ api.xd.miyang.cloud  A        111.229.102.231
 ```
 
 > 如果仓库迁移到其它 owner，`xd.miyang.cloud` 的 CNAME 目标要换成新的 `<owner>.github.io`。
+> 2026-09-09：`api.xd.miyang.cloud` 的 A 记录已创建并解析到 `111.229.102.231`；`xd.miyang.cloud` 仍临时保留服务器 A 记录，等 Pages 启用后再切 CNAME。
 
 ## 5. 服务器部署
 
@@ -155,6 +162,13 @@ bounty-board-bind.service
 ```
 
 切换完成后应停用，避免同时启动两个斗鱼监听器。
+
+2026-09-09 服务器状态：
+
+- 已部署 `bounty-board-api.service`，监听 `127.0.0.1:8788` / `*:8788`，Nginx 只从 `api.xd.miyang.cloud` 暴露 `/api/`。
+- 已部署 `bounty-board-douyu-worker.service`，只负责斗鱼弹幕绑定 Worker。
+- 旧 `bounty-board-bind.service` 已 `disable --now`。
+- 星露谷残留 `stardew-panel-gate.service` 已保持停用。
 
 ## 6. 生产环境变量
 
@@ -232,6 +246,8 @@ deploy/nginx/api.xd.miyang.cloud.conf
 sudo nginx -t
 sudo systemctl reload nginx
 ```
+
+如果用户要求“只要 HTTPS，不需要 HTTP 页面”，API 域名的 80 端口使用 `return 444;` 直接关闭连接，不做 HTTP 页面也不做跳转。API 证书已于 2026-09-09 通过 DNSPod DNS-01 签发，有效期至 2026-12-08。
 
 ### 第五步：拆 systemd 服务
 
