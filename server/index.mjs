@@ -9,6 +9,7 @@ import {
   getBindSession,
   getUserBySessionToken,
   loginWithUsernamePassword,
+  listRecentBindSessions,
   refreshExpiredBindSessions,
   revokeSessionToken,
   upsertUserDouyuProfile,
@@ -361,6 +362,11 @@ async function handleApi(req, res, url) {
     const body = await readJson(req)
     const user = await upsertUserDouyuProfile(body)
     return json(req, res, 200, { ok: true, user })
+  }
+
+  if (url.pathname === '/api/admin/bind-sessions' && req.method === 'GET') {
+    if (!requireAdminRequest(req, res, ctx)) return
+    return json(req, res, 200, { ok: true, bindSessions: await listRecentBindSessions(url.searchParams.get('limit') || 50) })
   }
 
   if (url.pathname === '/api/challenges/with-hidden' && req.method === 'GET') {

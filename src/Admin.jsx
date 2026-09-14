@@ -12,6 +12,7 @@ import {
   blacklistUser,
   deleteUser,
   saveDouyuUserProfile,
+  listBindSessions,
   getSetting,
   setSetting,
   GIFT_TYPES,
@@ -49,6 +50,7 @@ function Admin() {
   const [loading, setLoading] = useState(true)
 
   const [users, setUsers] = useState([])
+  const [bindSessions, setBindSessions] = useState([])
   const [userSearch, setUserSearch] = useState('')
   const [manualUserId, setManualUserId] = useState('')
   const [manualDouyuForm, setManualDouyuForm] = useState({
@@ -100,17 +102,19 @@ function Admin() {
   const fetchData = useCallback(async () => {
     setLoading(true)
     try {
-      const [cs, allC, fos, us, ml] = await Promise.all([
+      const [cs, allC, fos, us, bs, ml] = await Promise.all([
         listMainChallengesWithHidden({ showAllHidden: true }),
         listChallenges(),
         loadAllFollowOrders(),
         listUsers(),
+        listBindSessions({ limit: 100 }),
         getSetting('min_douyu_level', 0),
       ])
       setChallenges(cs)
       setAllChallenges(allC)
       setFollowOrders(fos)
       setUsers(us)
+      setBindSessions(bs)
       setMinLevel(Number(ml) || 0)
     } catch (e) {
       console.error(e)
@@ -212,6 +216,7 @@ function Admin() {
     setAllChallenges([])
     setFollowOrders([])
     setUsers([])
+    setBindSessions([])
   }
 
   async function handleChallengeSubmit(e) {
@@ -337,6 +342,31 @@ function Admin() {
     }
   }
 
+  const userIds = new Set(users.map(u => u.id).filter(Boolean))
+  const createdByIds = [...new Set(allChallenges.map(c => c.created_by).filter(Boolean))]
+  const orphanCreatorCount = createdByIds.filter(id => !userIds.has(id)).length
+  const hiddenCount = allChallenges.filter(c => c.parent_challenge_id != null).length
+  const completedBindCount = bindSessions.filter(b => b.status === 'completed').length
+  const activeCount = allChallenges.filter(c => c.status === 'active').length
+  const completedCount = allChallenges.filter(c => c.status === 'completed').length
+  const bannedCount = users.filter(u => u.is_blacklisted).length
+
+  function adminAvatar(user, size = 'normal') {
+    const src = user?.douyu_avatar || user?.boss_avatar || user?.created_by_user?.douyu_avatar || ''
+    const label = user?.douyu_nickname || user?.douyu_name || user?.boss_id || user?.username || '用户'
+    if (src && /^https?:\/\//i.test(src)) {
+      return <img className={`admin-avatar admin-avatar-${size}`} src={src} alt={label} loading="lazy" decoding="async" referrerPolicy="no-referrer" />
+    }
+    return <span className={`admin-avatar admin-avatar-${size} admin-avatar-placeholder`}>{label.charAt(0) || '?'}</span>
+  }
+
+  function creatorSummary(row) {
+    const creator = row.created_by_user
+    if (!row.created_by) return '后台/未绑定'
+    if (!creator) return `缺用户记录：${String(row.created_by).slice(0, 8)}…`
+    return `${creator.douyu_nickname || creator.username || creator.douyu_uid || '用户'}${creator.douyu_level ? ` · LV${creator.douyu_level}` : ''}`
+  }
+
   if (checkingAdminAuth) {
     return <div className="admin-loading">正在检查管理员登录状态...</div>
   }
@@ -376,6 +406,23 @@ function Admin() {
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px' }}>
         <button type="button" className="admin-btn-secondary" onClick={handleLogout}>退出管理员</button>
       </div>
+      <div className="admin-stats">
+        <div className="admin-stat-card"><span>用户数</span><strong>{users.length}</strong></div>
+        <div className="admin-stat-card"><span>黑名单</span><strong>{bannedCount}</strong></div>
+        <div className="admin-stat-card"><span>绑定记录</span><strong>{bindSessions.length}</strong><small>完成 {completedBindCount}</small></div>
+        <div className="admin-stat-card"><span>任务总数</span><strong>{allChallenges.length}</strong></div>
+        <div className="admin-stat-card"><span>进行中</span><strong>{activeCount}</strong></div>
+        <div className="admin-stat-card"><span>已完成</span><strong>{completedCount}</strong></div>
+        <div className="admin-stat-card"><span>隐藏任务</span><strong>{hiddenCount}</strong></div>
+      </div>
+
+      {orphanCreatorCount > 0 && (
+        <div className="admin-warning">
+          检测到 {orphanCreatorCount} 个任务的创建者 ID 在 users 表中找不到。
+          这会导致后台看不到对应用户信息、前台无法显示头像。请让数据库维护者检查是否注册数据还在旧表、是否误删 users 记录，或是否还没执行最新迁移。
+        </div>
+      )}
+
       <div className="admin-tabs">
         <button className={`admin-tab ${activeTab === 'challenges' ? 'active' : ''}`} onClick={() => setActiveTab('challenges')}>
           任务管理
@@ -385,6 +432,9 @@ function Admin() {
         </button>
         <button className={`admin-tab ${activeTab === 'users' ? 'active' : ''}`} onClick={() => setActiveTab('users')}>
           用户管理 ({users.length})
+        </button>
+        <button className={`admin-tab ${activeTab === 'binds' ? 'active' : ''}`} onClick={() => setActiveTab('binds')}>
+          绑定记录 ({bindSessions.length})
         </button>
         <button className={`admin-tab ${activeTab === 'settings' ? 'active' : ''}`} onClick={() => setActiveTab('settings')}>
           配置管理
@@ -443,7 +493,7 @@ function Admin() {
               <table>
                 <thead>
                   <tr>
-                    <th>老板</th><th>标题</th><th>类型</th><th>礼物</th><th>数量</th><th>状态</th><th>操作</th>
+                    <th>老板</th><th>创建者资料</th><th>标题</th><th>类型</th><th>礼物</th><th>数量</th><th>状态</th><th>隐藏数</th><th>创建时间</th><th>操作</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -451,11 +501,14 @@ function Admin() {
                     <Fragment key={c.id}>
                       <tr className="admin-row-main">
                         <td>{c.boss_id}</td>
+                        <td><div className="admin-user-mini">{adminAvatar(c, 'small')}<span>{creatorSummary(c)}</span></div></td>
                         <td>{c.title}</td>
                         <td>主任务</td>
                         <td>{GIFT_ICONS[c.gift_type]} {c.gift_type}</td>
                         <td>{c.gift_quantity}</td>
                         <td>{c.status}</td>
+                        <td>{c.hidden_challenges?.length || 0}</td>
+                        <td>{c.created_at ? new Date(c.created_at).toLocaleString('zh-CN') : '-'}</td>
                         <td>
                           <button onClick={() => editChallenge(c)}>编辑</button>
                           <button className="admin-btn-danger" onClick={() => handleChallengeDelete(c.id)}>删除</button>
@@ -464,11 +517,14 @@ function Admin() {
                       {c.hidden_challenges && c.hidden_challenges.map(h => (
                         <tr key={h.id} className="admin-row-hidden">
                           <td>{h.boss_id}</td>
+                          <td><div className="admin-user-mini">{adminAvatar(h, 'small')}<span>{creatorSummary(h)}</span></div></td>
                           <td>↳ {h.title}</td>
                           <td>🎁 隐藏</td>
                           <td>{GIFT_ICONS[h.gift_type]} {h.gift_type}</td>
                           <td>{h.gift_quantity}</td>
                           <td>{h.status}</td>
+                          <td>-</td>
+                          <td>{h.created_at ? new Date(h.created_at).toLocaleString('zh-CN') : '-'}</td>
                           <td>
                             <button onClick={() => editChallenge(h)}>编辑</button>
                             <button className="admin-btn-danger" onClick={() => handleChallengeDelete(h.id)}>删除</button>
@@ -527,7 +583,7 @@ function Admin() {
               <table>
                 <thead>
                   <tr>
-                    <th>任务</th><th>老板ID</th><th>礼物</th><th>数量</th><th>时间</th><th>操作</th>
+                    <th>任务</th><th>老板ID</th><th>创建者资料</th><th>礼物</th><th>数量</th><th>时间</th><th>操作</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -535,6 +591,7 @@ function Admin() {
                     <tr key={o.id}>
                       <td>{o.challenge_title}</td>
                       <td>{o.boss_id}</td>
+                      <td><div className="admin-user-mini">{adminAvatar(o, 'small')}<span>{creatorSummary(o)}</span></div></td>
                       <td>{GIFT_ICONS[o.gift_type]} {o.gift_type}</td>
                       <td>{o.gift_quantity}</td>
                       <td>{new Date(o.created_at).toLocaleString('zh-CN')}</td>
@@ -604,15 +661,18 @@ function Admin() {
               <table>
                 <thead>
                   <tr>
-                    <th>斗鱼ID</th><th>昵称</th><th>等级</th><th>状态</th><th>最后登录</th><th>操作</th>
+                    <th>头像</th><th>站内用户名</th><th>斗鱼UID</th><th>斗鱼昵称</th><th>斗鱼等级</th><th>粉丝牌</th><th>状态</th><th>注册时间</th><th>最后登录</th><th>操作</th>
                   </tr>
                 </thead>
                 <tbody>
                   {users.map(u => (
                     <tr key={u.id} className={u.is_blacklisted ? 'admin-row-banned' : ''}>
+                      <td>{adminAvatar(u)}</td>
+                      <td>{u.username || '-'}</td>
                       <td>{u.douyu_uid || u.douyu_id || '-'}</td>
                       <td>{u.douyu_nickname || u.douyu_name || '-'}</td>
                       <td>LV{u.douyu_level || 0}</td>
+                      <td>{u.douyu_badge_name || '-'}{u.douyu_badge_level ? ` · ${u.douyu_badge_level}级` : ''}</td>
                       <td>
                         {u.is_blacklisted ? (
                           <span style={{ color: '#ff5050', fontWeight: 700 }}>🚫 已拉黑</span>
@@ -620,6 +680,7 @@ function Admin() {
                           <span style={{ color: '#00C853' }}>✓ 正常</span>
                         )}
                       </td>
+                      <td>{u.created_at ? new Date(u.created_at).toLocaleString('zh-CN') : '-'}</td>
                       <td>{u.last_login_at ? new Date(u.last_login_at).toLocaleString('zh-CN') : '-'}</td>
                       <td>
                         <button type="button" onClick={() => openManualUserForm(u)}>编辑斗鱼资料</button>
@@ -632,6 +693,40 @@ function Admin() {
                         </button>
                         <button type="button" className="admin-btn-danger" onClick={() => handleDeleteUser(u)}>删除</button>
                       </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'binds' && (
+        <div className="admin-panel">
+          <div className="admin-list">
+            <h3>最近绑定记录 ({bindSessions.length})</h3>
+            <p className="admin-help-text">用于排查“绑定成功但用户列表没有人”：状态 completed 且 userId 为空，通常说明完成注册写 users 失败；matched 但未 completed，说明只识别到弹幕，还没完成用户名密码设置。</p>
+            {bindSessions.length === 0 ? <div className="admin-empty">暂无绑定记录</div> : (
+              <table>
+                <thead>
+                  <tr>
+                    <th>状态</th><th>识别码</th><th>房间</th><th>斗鱼资料</th><th>头像</th><th>User ID</th><th>创建时间</th><th>命中时间</th><th>完成时间</th><th>过期时间</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {bindSessions.map(b => (
+                    <tr key={b.id}>
+                      <td>{b.status}</td>
+                      <td><code>{b.code}</code></td>
+                      <td>{b.roomId}</td>
+                      <td>{b.profile ? `${b.profile.name || '-'} / ${b.profile.uid || '-'} / LV${b.profile.level ?? 0}` : '-'}</td>
+                      <td>{b.profile ? adminAvatar({ douyu_avatar: b.profile.avatar, douyu_nickname: b.profile.name }, 'small') : '-'}</td>
+                      <td>{b.userId ? String(b.userId).slice(0, 8) + '…' : '-'}</td>
+                      <td>{b.createdAt ? new Date(b.createdAt).toLocaleString('zh-CN') : '-'}</td>
+                      <td>{b.matchedAt ? new Date(b.matchedAt).toLocaleString('zh-CN') : '-'}</td>
+                      <td>{b.completedAt ? new Date(b.completedAt).toLocaleString('zh-CN') : '-'}</td>
+                      <td>{b.expiresAt ? new Date(b.expiresAt).toLocaleString('zh-CN') : '-'}</td>
                     </tr>
                   ))}
                 </tbody>
