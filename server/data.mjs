@@ -126,7 +126,7 @@ export async function listUserRows({ search = '' } = {}) {
   let query = db().from('users').select('*').order('created_at', { ascending: false })
   const q = String(search || '').trim()
   if (q) query = query.or(`douyu_uid.ilike.%${q}%,douyu_nickname.ilike.%${q}%,username.ilike.%${q}%`)
-  return (await many(query)).map(normalizeUserRow)
+  return (await many(await query)).map(normalizeUserRow)
 }
 
 async function userMapByIds(ids = []) {
