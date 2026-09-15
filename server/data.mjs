@@ -129,6 +129,33 @@ export async function listUserRows({ search = '' } = {}) {
   return (await many(query)).map(normalizeUserRow)
 }
 
+async function userMapByIds(ids = []) {
+  const uniqueIds = [...new Set(ids.filter(Boolean))]
+  if (uniqueIds.length === 0) return new Map()
+  const rows = await many(await db().from('users').select('*').in('id', uniqueIds))
+  return new Map(rows.map(row => [row.id, normalizeUserRow(row)]))
+}
+
+function attachCreator(row, usersById) {
+  if (!row) return row
+  const creator = usersById.get(row.created_by) || null
+  return {
+    ...row,
+    created_by_user: creator,
+    boss_avatar: creator?.douyu_avatar || '',
+    boss_douyu_uid: creator?.douyu_uid || creator?.douyu_id || '',
+    boss_douyu_nickname: creator?.douyu_nickname || creator?.douyu_name || '',
+    boss_douyu_level: creator?.douyu_level ?? null,
+    boss_douyu_badge_name: creator?.douyu_badge_name || '',
+    boss_douyu_badge_level: creator?.douyu_badge_level ?? 0,
+  }
+}
+
+async function enrichCreatorRows(rows = []) {
+  const usersById = await userMapByIds(rows.map(row => row.created_by))
+  return rows.map(row => attachCreator(row, usersById))
+}
+
 export async function getUserRow(id) {
   return normalizeUserRow(await first(await db().from('users').select('*').eq('id', id).maybeSingle()))
 }
@@ -156,11 +183,12 @@ export async function listChallengeRows({ includeHidden = true, showAllHidden = 
   const rows = await many(await db().from('challenges').select('*').order('created_at', { ascending: false }))
   const parents = new Map(rows.filter(row => !row.parent_challenge_id).map(row => [row.id, row]))
   const allowAllHidden = showAllHidden && ctx.isAdmin
-  return rows.filter(row => {
+  const visibleRows = rows.filter(row => {
     if (!includeHidden && row.parent_challenge_id) return false
     if (allowAllHidden) return true
     return canSeeChallenge(row, parents.get(row.parent_challenge_id), ctx)
   })
+  return enrichCreatorRows(visibleRows)
 }
 
 export async function listMainChallengesWithHiddenRows({ showAllHidden = false, ctx = {} } = {}) {
@@ -172,12 +200,15 @@ export async function listMainChallengesWithHiddenRows({ showAllHidden = false, 
     ? hiddens
     : hiddens.filter(row => canSeeChallenge(row, mains.find(main => main.id === row.parent_challenge_id), ctx))
 
+  const visibleIds = new Set([...mains, ...visibleHiddens].map(row => row.created_by).filter(Boolean))
+  const usersById = await userMapByIds([...visibleIds])
+
   return sortChallenges(mains).map(main => {
-    const children = visibleHiddens.filter(row => row.parent_challenge_id === main.id)
+    const children = visibleHiddens.filter(row => row.parent_challenge_id === main.id).map(row => attachCreator(row, usersById))
     const allChildren = hiddens.filter(row => row.parent_challenge_id === main.id)
     const canSeeTotal = ctx.isAdmin || (ctx.user?.id && main.created_by === ctx.user.id)
     return {
-      ...main,
+      ...attachCreator(main, usersById),
       hidden_challenges: children,
       hidden_total_count: canSeeTotal ? allChildren.length : children.length,
     }
@@ -185,7 +216,9 @@ export async function listMainChallengesWithHiddenRows({ showAllHidden = false, 
 }
 
 export async function getChallengeRow(id, ctx = {}) {
-  return ensureCanSeeChallenge(id, ctx)
+  const row = await ensureCanSeeChallenge(id, ctx)
+  const [enriched] = await enrichCreatorRows([row])
+  return enriched
 }
 
 function validateGift(value) {
@@ -278,7 +311,8 @@ export async function deleteChallengeRow(id) {
 
 export async function listFollowOrderRows(challengeId, ctx = {}) {
   await ensureCanSeeChallenge(challengeId, ctx)
-  return many(await db().from('follow_orders').select('*').eq('challenge_id', challengeId).order('created_at', { ascending: true }))
+  const rows = await many(await db().from('follow_orders').select('*').eq('challenge_id', challengeId).order('created_at', { ascending: true }))
+  return enrichCreatorRows(rows)
 }
 
 export async function createFollowOrderRow(payload = {}, ctx = {}) {

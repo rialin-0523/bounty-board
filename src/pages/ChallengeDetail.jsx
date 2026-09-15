@@ -98,6 +98,16 @@ export default function ChallengeDetail() {
   const isMainCreator = currentUser && challenge && challenge.created_by === currentUser.id
   const currentUserLabel = currentUser?.username || currentUser?.douyu_nickname || currentUser?.douyu_id || ''
 
+  function bossAvatarNode(c, small = false) {
+    const src = c?.boss_avatar || c?.created_by_user?.douyu_avatar || ''
+    const label = c?.boss_douyu_nickname || c?.created_by_user?.douyu_nickname || c?.boss_id || '老板'
+    const className = `cd-boss-avatar${small ? ' small' : ''}`
+    if (src && /^https?:\/\//i.test(src)) {
+      return <img className={`${className} cd-boss-avatar-img`} src={src} alt={label} loading="lazy" decoding="async" referrerPolicy="no-referrer" />
+    }
+    return <div className={className}>{label?.charAt(0) || '?'}</div>
+  }
+
   async function checkPerm() {
     const perm = await checkCurrentUserPermission(currentUser)
     if (!perm.allowed) {
@@ -244,10 +254,12 @@ export default function ChallengeDetail() {
           </div>
 
           <div className="cd-boss-row">
-            <div className="cd-boss-avatar">{challenge.boss_id?.charAt(0) || '?'}</div>
+            {bossAvatarNode(challenge)}
             <div>
               <div className="cd-boss-name">{challenge.boss_id}</div>
-              <div className="cd-boss-label">{isMain ? '发布老板' : '隐藏任务老板'}</div>
+              <div className="cd-boss-label">
+                {isMain ? '发布老板' : '隐藏任务老板'}{challenge.boss_douyu_level != null ? ` · LV${challenge.boss_douyu_level}` : ''}
+              </div>
             </div>
           </div>
 
@@ -328,10 +340,10 @@ export default function ChallengeDetail() {
                     <div className="cd-hidden-card-border"></div>
                     <div className="cd-hidden-status">隐藏任务</div>
                     <div className="cd-boss-row small">
-                      <div className="cd-boss-avatar small">{h.boss_id?.charAt(0) || '?'}</div>
+                      {bossAvatarNode(h, true)}
                       <div>
                         <div className="cd-boss-name">{h.boss_id}</div>
-                        <div className="cd-boss-label">老板</div>
+                        <div className="cd-boss-label">老板{h.boss_douyu_level != null ? ` · LV${h.boss_douyu_level}` : ''}</div>
                       </div>
                     </div>
                     <h3 className="cd-hidden-title">{h.title}</h3>

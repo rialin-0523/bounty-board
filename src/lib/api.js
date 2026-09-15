@@ -66,6 +66,11 @@ export async function deleteUser(id) {
   await requestJson(`/api/admin/users/${encodeURIComponent(id)}`, { method: 'DELETE' })
 }
 
+export async function listBindSessions({ limit = 50 } = {}) {
+  const data = await requestJson(`/api/admin/bind-sessions${queryString({ limit })}`)
+  return data.bindSessions || []
+}
+
 export async function saveDouyuUserProfile(payload) {
   const body = {
     id: payload.id || null,

@@ -274,3 +274,92 @@
 }
 
 .admin-list button:hover { background: #555; }
+
+/* 数据总览 / 诊断 */
+.admin-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.admin-stat-card {
+  background: #141414;
+  border: 1px solid #333;
+  border-left: 3px solid #FFD700;
+  border-radius: 6px;
+  padding: 12px;
+}
+
+.admin-stat-card span {
+  display: block;
+  color: #aaa;
+  font-size: 0.75rem;
+  margin-bottom: 5px;
+}
+
+.admin-stat-card strong {
+  color: #FFD700;
+  font-size: 1.35rem;
+}
+
+.admin-warning {
+  border: 1px solid #E60012;
+  background: rgba(230, 0, 18, 0.12);
+  color: #ffd9d9;
+  padding: 12px 14px;
+  border-radius: 6px;
+  margin-bottom: 14px;
+  line-height: 1.6;
+}
+
+.admin-user-mini {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 240px;
+}
+
+.admin-user-mini span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid #FFD700;
+  background: #0a0a0a;
+  color: #FFD700;
+  flex: 0 0 auto;
+}
+
+.admin-avatar-small {
+  width: 24px;
+  height: 24px;
+}
+
+.admin-avatar-placeholder {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  font-size: 0.75rem;
+}
+
+.admin-help-text {
+  color: #999;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  margin: -4px 0 12px;
+}
+
+.admin-stat-card small {
+  display: block;
+  color: #888;
+  font-size: 0.72rem;
+  margin-top: 3px;
+}

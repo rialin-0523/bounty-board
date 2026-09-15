@@ -57,6 +57,15 @@ export default function HomePage() {
     return currentUser && c.created_by === currentUser.id
   }
 
+  function bossAvatarNode(c) {
+    const src = c.boss_avatar || c.created_by_user?.douyu_avatar || ''
+    const label = c.boss_douyu_nickname || c.created_by_user?.douyu_nickname || c.boss_id || '老板'
+    if (src && /^https?:\/\//i.test(src)) {
+      return <img className="cb-boss-avatar-img" src={src} alt={label} loading="lazy" decoding="async" referrerPolicy="no-referrer" />
+    }
+    return <div className="cb-boss-avatar">{label?.charAt(0) || '?'}</div>
+  }
+
   async function handleComplete(c, e) {
     e.preventDefault()
     e.stopPropagation()
@@ -129,10 +138,12 @@ export default function HomePage() {
                 <div className="cb-card-border"></div>
                 <div className="cb-card-head">
                   <div className="cb-boss-info">
-                    <div className="cb-boss-avatar">{c.boss_id?.charAt(0) || '?'}</div>
+                    {bossAvatarNode(c)}
                     <div>
                       <div className="cb-boss-name">{c.boss_id}</div>
-                      <div className="cb-boss-label">老板</div>
+                      <div className="cb-boss-label">
+                        老板{c.boss_douyu_level != null ? ` · LV${c.boss_douyu_level}` : ''}
+                      </div>
                     </div>
                   </div>
                   <span className={`cb-status cb-status-${c.status}`}>

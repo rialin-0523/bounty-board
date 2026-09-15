@@ -149,6 +149,18 @@ export async function getBindSession(id) {
   return bindShape(await firstData(result))
 }
 
+export async function listRecentBindSessions(limit = 50) {
+  const supabase = requireAdmin()
+  const safeLimit = Math.min(Math.max(Number.parseInt(String(limit || 50), 10) || 50, 1), 200)
+  const result = await supabase
+    .from('bind_sessions')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(safeLimit)
+  const rows = await firstData(result)
+  return (rows || []).map(bindShape)
+}
+
 export async function markBindSessionMatched(id, profile, message) {
   const supabase = requireAdmin()
   const result = await supabase
