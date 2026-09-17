@@ -30,6 +30,23 @@ export function formatExpiryTime(expiresAt) {
   })
 }
 
+export function formatDateTimeWithWeekday(value) {
+  if (!value || !Number.isFinite(new Date(value).getTime())) return '-'
+  const parts = new Intl.DateTimeFormat('zh-CN', {
+    timeZone: 'Asia/Shanghai',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    weekday: 'long',
+    hourCycle: 'h23',
+  }).formatToParts(new Date(value))
+  const values = Object.fromEntries(parts.map(({ type, value: partValue }) => [type, partValue]))
+  return `${values.year}-${values.month}-${values.day} ${values.hour}:${values.minute}:${values.second} ${values.weekday}`
+}
+
 export function challengeStatusLabel(status) {
   return { active: '进行中', expired: '已到期', completed: '已完成', cancelled: '已取消' }[status] || status
 }

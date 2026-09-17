@@ -11,9 +11,9 @@ export default function Layout({ children }) {
       <header className="app-brand">
         <Link to="/" className="brand-left">
           <div className="brand-logo">
-            <span className="brand-logo-text">亿星文化</span>
+            <span className="brand-logo-text">亿星传媒</span>
           </div>
-          <div className="brand-title">突围特工队</div>
+          <div className="brand-title">悬赏令</div>
         </Link>
         <div className="brand-actions">
           <Link
@@ -52,7 +52,7 @@ export default function Layout({ children }) {
           )}
           <div className="brand-season">
             <span className="season-dot"></span>
-            <span>突围特工队 / S1</span>
+            <span>亿星传媒 / S1</span>
           </div>
         </div>
       </header>

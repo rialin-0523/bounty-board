@@ -19,7 +19,7 @@ import {
   GIFT_ICONS,
 } from './lib/api'
 import { adminLogin, adminLogout, getAdminMe } from './lib/authApi'
-import { VALIDITY_HOURS, challengeStatusLabel, formatExpiryTime, formatRemainingTime, getChallengeStatus } from './lib/challengeExpiry'
+import { VALIDITY_HOURS, challengeStatusLabel, formatDateTimeWithWeekday, formatExpiryTime, formatRemainingTime, getChallengeStatus } from './lib/challengeExpiry'
 import './Admin.css'
 
 const emptyChallenge = {
@@ -408,7 +408,7 @@ function Admin() {
 
   return (
     <div className="admin">
-      <h1 className="admin-title">突围特工队 · 后台管理</h1>
+      <h1 className="admin-title">亿星传媒 · 后台管理</h1>
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px' }}>
         <button type="button" className="admin-btn-secondary" onClick={handleLogout}>退出管理员</button>
       </div>
@@ -527,7 +527,7 @@ function Admin() {
                         <td>{challengeStatusLabel(getChallengeStatus(c))}</td>
                         <td>{c.validity_hours || 3}小时<br /><small>{formatExpiryTime(c.expires_at)}<br />{getChallengeStatus(c) === 'active' ? formatRemainingTime(c.expires_at) : '已结束/到期'}</small></td>
                         <td>{c.hidden_challenges?.length || 0}</td>
-                        <td>{c.created_at ? new Date(c.created_at).toLocaleString('zh-CN') : '-'}</td>
+                        <td>{formatDateTimeWithWeekday(c.created_at)}</td>
                         <td>
                           <button onClick={() => editChallenge(c)}>编辑</button>
                           <button className="admin-btn-danger" onClick={() => handleChallengeDelete(c.id)}>删除</button>
@@ -544,7 +544,7 @@ function Admin() {
                           <td>{challengeStatusLabel(getChallengeStatus(h))}</td>
                           <td>{h.validity_hours || 3}小时<br /><small>{formatExpiryTime(h.expires_at)}<br />{getChallengeStatus(h) === 'active' ? formatRemainingTime(h.expires_at) : '已结束/到期'}</small></td>
                           <td>-</td>
-                          <td>{h.created_at ? new Date(h.created_at).toLocaleString('zh-CN') : '-'}</td>
+                          <td>{formatDateTimeWithWeekday(h.created_at)}</td>
                           <td>
                             <button onClick={() => editChallenge(h)}>编辑</button>
                             <button className="admin-btn-danger" onClick={() => handleChallengeDelete(h.id)}>删除</button>
@@ -614,7 +614,7 @@ function Admin() {
                       <td><div className="admin-user-mini">{adminAvatar(o, 'small')}<span>{creatorSummary(o)}</span></div></td>
                       <td>{GIFT_ICONS[o.gift_type]} {o.gift_type}</td>
                       <td>{o.gift_quantity}</td>
-                      <td>{new Date(o.created_at).toLocaleString('zh-CN')}</td>
+                      <td>{formatDateTimeWithWeekday(o.created_at)}</td>
                       <td>
                         <button className="admin-btn-danger" onClick={() => handleFollowDelete(o.id)}>删除</button>
                       </td>
@@ -700,8 +700,8 @@ function Admin() {
                           <span style={{ color: '#00C853' }}>✓ 正常</span>
                         )}
                       </td>
-                      <td>{u.created_at ? new Date(u.created_at).toLocaleString('zh-CN') : '-'}</td>
-                      <td>{u.last_login_at ? new Date(u.last_login_at).toLocaleString('zh-CN') : '-'}</td>
+                      <td>{formatDateTimeWithWeekday(u.created_at)}</td>
+                      <td>{formatDateTimeWithWeekday(u.last_login_at)}</td>
                       <td>
                         <button type="button" onClick={() => openManualUserForm(u)}>编辑斗鱼资料</button>
                         <button
@@ -743,10 +743,10 @@ function Admin() {
                       <td>{b.profile ? `${b.profile.name || '-'} / ${b.profile.uid || '-'} / LV${b.profile.level ?? 0}` : '-'}</td>
                       <td>{b.profile ? adminAvatar({ douyu_avatar: b.profile.avatar, douyu_nickname: b.profile.name }, 'small') : '-'}</td>
                       <td>{b.userId ? String(b.userId).slice(0, 8) + '…' : '-'}</td>
-                      <td>{b.createdAt ? new Date(b.createdAt).toLocaleString('zh-CN') : '-'}</td>
-                      <td>{b.matchedAt ? new Date(b.matchedAt).toLocaleString('zh-CN') : '-'}</td>
-                      <td>{b.completedAt ? new Date(b.completedAt).toLocaleString('zh-CN') : '-'}</td>
-                      <td>{b.expiresAt ? new Date(b.expiresAt).toLocaleString('zh-CN') : '-'}</td>
+                      <td>{formatDateTimeWithWeekday(b.createdAt)}</td>
+                      <td>{formatDateTimeWithWeekday(b.matchedAt)}</td>
+                      <td>{formatDateTimeWithWeekday(b.completedAt)}</td>
+                      <td>{formatDateTimeWithWeekday(b.expiresAt)}</td>
                     </tr>
                   ))}
                 </tbody>

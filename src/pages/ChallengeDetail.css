@@ -162,6 +162,11 @@
   margin-bottom: 12px;
 }
 
+.cd-hidden-follow-list {
+  margin-top: 10px;
+  margin-bottom: 8px;
+}
+
 .cd-section-label {
   font-size: 0.75rem;
   color: #555;
@@ -183,6 +188,17 @@
   padding: 3px 8px;
   border-radius: 2px;
   font-weight: 700;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 100%;
+}
+
+.cd-follow-chip small {
+  font-size: 0.68rem;
+  font-weight: 600;
+  opacity: 0.88;
+  white-space: nowrap;
 }
 
 .cd-actions {

@@ -13,7 +13,7 @@ import {
   GIFT_ICONS,
   GIFT_TYPES,
 } from '../lib/api'
-import { challengeStatusLabel, formatExpiryTime, formatRemainingTime, getChallengeStatus, isChallengeActive } from '../lib/challengeExpiry'
+import { challengeStatusLabel, formatDateTimeWithWeekday, formatExpiryTime, formatRemainingTime, getChallengeStatus, isChallengeActive } from '../lib/challengeExpiry'
 import './ChallengeDetail.css'
 
 export default function ChallengeDetail() {
@@ -314,9 +314,10 @@ export default function ChallengeDetail() {
               <div className="cd-section-label">跟单记录 ({followMain.orders.length})</div>
               <div className="cd-follow-items">
                 {followMain.orders.map(o => (
-                  <span key={o.id} className="cd-follow-chip">
-                    {o.boss_id}: {GIFT_ICONS[o.gift_type]} {o.gift_quantity}
-                  </span>
+                  <div key={o.id} className="cd-follow-chip">
+                    <span>{o.boss_id}: {GIFT_ICONS[o.gift_type]} {o.gift_quantity}</span>
+                    <small>{formatDateTimeWithWeekday(o.created_at)}</small>
+                  </div>
                 ))}
               </div>
             </div>
@@ -383,6 +384,20 @@ export default function ChallengeDetail() {
                         <span className="cd-gift-total">{h.gift_quantity + (fh.acc[h.gift_type] || 0)}</span>
                       </div>
                     </div>
+
+                    {fh.orders.length > 0 && (
+                      <div className="cd-hidden-follow-list">
+                        <div className="cd-section-label">跟单记录 ({fh.orders.length})</div>
+                        <div className="cd-follow-items">
+                          {fh.orders.map(o => (
+                            <div key={o.id} className="cd-follow-chip">
+                              <span>{o.boss_id}: {GIFT_ICONS[o.gift_type]} {o.gift_quantity}</span>
+                              <small>{formatDateTimeWithWeekday(o.created_at)}</small>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
 
                     <button className="cd-follow-btn small" onClick={() => handleFollowClick(h)} disabled={hiddenStatus !== 'active'}>
                       {hiddenStatus === 'active' ? '+ 跟单' : '任务已结束'}
