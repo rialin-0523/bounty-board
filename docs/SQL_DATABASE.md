@@ -39,7 +39,23 @@ supabase/migration.sql
 这个脚本会一次性建好完整结构。
 
 
-### 3）如果已经切到 API-only 前后端分离
+### 3）任务有效期（本次上线必须执行）
+
+已经存在 `challenges` 表的生产库，在部署新 API 前执行：
+
+```sql
+supabase/task_expiration_increment.sql
+```
+
+脚本会新增：
+
+- `validity_hours`：只能是 `3 / 5 / 8 / 12 / 24`，默认 3。
+- `expires_at`：任务准确到期时间。
+- 到期时间索引。
+
+历史任务会按 `created_at + 3小时` 回填，因此老任务会显示已到期；不会删除任务和跟单。
+
+### 4）如果已经切到 API-only 前后端分离
 
 前端已经改为 GitHub Pages + `VITE_API_BASE_URL` 调 Node API 后，建议执行：
 
@@ -128,6 +144,8 @@ supabase/api_only_rls_hardening.sql
 - `parent_challenge_id`
 - `created_by`
 - `status`
+- `validity_hours`：有效期档位，只能是 3 / 5 / 8 / 12 / 24，默认 3
+- `expires_at`：准确到期时间
 - `created_at` / `updated_at`
 
 ### 关键约束
@@ -136,6 +154,7 @@ supabase/api_only_rls_hardening.sql
 - `gift_quantity > 0`
 - `status` 只能是：`active`、`completed`、`cancelled`
 - `created_by` 外键指向 `users.id`
+- 任务到期不写入 `status=expired`；API 根据 `status=active + expires_at <= 当前时间` 动态返回已到期，避免管理员延期后残留错误状态
 
 ### 用途
 
@@ -162,6 +181,7 @@ supabase/api_only_rls_hardening.sql
 
 - `challenge_id` 外键指向 `challenges.id`
 - `created_by` 外键指向 `users.id`
+- 任务到期不写入 `status=expired`；API 根据 `status=active + expires_at <= 当前时间` 动态返回已到期，避免管理员延期后残留错误状态
 - `gift_type` 同样限制为：`飞机`、`火箭`、`币`
 - `gift_quantity > 0`
 
@@ -311,6 +331,7 @@ supabase/api_only_rls_hardening.sql
 5. **绑定码同一天不能重复生成相同值**。
 6. **登录状态走 `auth_sessions`**。
 7. **旧 `app_users` 只当迁移痕迹**，不要再回退回去。
+8. **任务默认有效 3 小时**；到期后 API 必须拒绝跟单和新增隐藏任务。后台需要延时，必须明确重设 `expires_at`，不能只改显示文案。
 
 ---
 
@@ -318,5 +339,6 @@ supabase/api_only_rls_hardening.sql
 
 - `supabase/migration.sql`
 - `supabase/binding_increment.sql`
+- `supabase/task_expiration_increment.sql`（已上线库新增任务时效）
 
 如果你朋友要直接改库，优先看这两个文件。

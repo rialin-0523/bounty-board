@@ -16,6 +16,7 @@
 - 斗鱼 Worker：`server/worker.mjs`
 - 数据库迁移：`supabase/migration.sql`
 - 已有数据库增量脚本：`supabase/binding_increment.sql`
+- 已上线库的任务时效增量脚本：`supabase/task_expiration_increment.sql`
 
 ## 3. 关键规则
 
@@ -39,6 +40,8 @@
 ### 3.3 任务可见性
 
 - `created_by` 必须写入任务和跟单。
+- 任务创建时必须从五档有效期 `3 / 5 / 8 / 12 / 24` 中选择，默认 3 小时，并写入 `validity_hours` 和 `expires_at`。
+- API 读取任务时动态计算 `effective_status=expired`，不靠定时任务改数据库；已到期任务不能跟单、不能添加隐藏任务、普通用户不能再修改。管理员可勾选“重新开始计算有效期”，从当前时间重设期限。
 - 普通用户的 `boss_id` / `created_by` 必须由后端按登录 Cookie 自动写入，不能相信前端表单或浏览器请求传来的身份字段；管理员后台仍可手动维护任务显示信息。
 - 隐藏任务只对创建者自己、以及主任务创建者可见。
 - 首页和详情页都按登录用户做可见性过滤。
@@ -54,6 +57,8 @@
 ### 3.5 前后端分离
 
 - 前端请求统一走 `src/lib/http.js`。
+- `src/App.jsx` 使用 React 路由懒加载；首页首屏不加载后台、绑定、发布、详情和登录页代码。
+- `GET /api/challenges/with-hidden` 会同时返回可见任务的 `follow_summary`，首页不再针对每个任务单独请求跟单数据，避免任务数量增长导致请求数量线性放大。
 - GitHub Pages 构建时配置 `VITE_API_BASE_URL=https://api.xd.miyang.cloud`。
 - `src/lib/http.js` 只在有 body 时带 JSON `Content-Type`，GET 不带，避免跨域 API 在大访问量下产生额外 CORS 预检压力。
 - 前端不再直接调用 Supabase 表，避免隐藏任务、用户、后台配置只靠前端过滤。
@@ -107,7 +112,9 @@ node --check server/auth.mjs
 - 后端需要 `SUPABASE_SECRET_KEY` 或 `SUPABASE_SERVICE_ROLE_KEY`。
 - 斗鱼监听只在有有效绑定码时启动，空闲会自动停。
 - 如果主分支数据库还没有 `users` / `settings` / `created_by`，先跑 `supabase/binding_increment.sql` 或直接按 `supabase/migration.sql` 初始化。
+- 为已有生产任务加时效时，先执行 `supabase/task_expiration_increment.sql`，再部署 API；否则新 API 写入 `validity_hours / expires_at` 会失败。
+- 如果以后重新编写首页任务接口，必须保留 `follow_summary` 的批量返回；不要恢复“列表接口 + 每个任务一个跟单请求”的 N+1 请求模式。
 
 ## 8. 分离部署重点提醒
 
-详细看 `docs/GITHUB_PAGES_API_WORKER_SPLIT.md`。以后大访问量前台默认优先考虑 GitHub Pages / CDN；斗鱼 TCP 弹幕监听默认不要和 HTTP API 放在同一个 Node 进程。
+详细看 `docs/GITHUB_PAGES_API_WORKER_SPLIT.md`。以后大访问量前台默认优先考虑 GitHub Pages / CDN；斗鱼 TCP 弹幕监听默认不要和 HTTP API 放在同一个 Node 进程。前端页面继续保持路由懒加载，任务统计优先使用批量接口。

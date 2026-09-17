@@ -19,6 +19,7 @@ import {
   GIFT_ICONS,
 } from './lib/api'
 import { adminLogin, adminLogout, getAdminMe } from './lib/authApi'
+import { VALIDITY_HOURS, challengeStatusLabel, formatExpiryTime, formatRemainingTime, getChallengeStatus } from './lib/challengeExpiry'
 import './Admin.css'
 
 const emptyChallenge = {
@@ -28,6 +29,8 @@ const emptyChallenge = {
   condition_desc: '',
   gift_type: '飞机',
   gift_quantity: 1,
+  validity_hours: 3,
+  reset_expiry: false,
   status: 'active',
 }
 
@@ -237,6 +240,8 @@ function Admin() {
         condition_desc: challengeForm.condition_desc || null,
         gift_type: challengeForm.gift_type,
         gift_quantity: parseInt(challengeForm.gift_quantity),
+        validity_hours: Number(challengeForm.validity_hours),
+        reset_expiry: Boolean(challengeForm.reset_expiry),
         is_hidden: false,
         parent_challenge_id: null,
         created_by: null,
@@ -347,7 +352,8 @@ function Admin() {
   const orphanCreatorCount = createdByIds.filter(id => !userIds.has(id)).length
   const hiddenCount = allChallenges.filter(c => c.parent_challenge_id != null).length
   const completedBindCount = bindSessions.filter(b => b.status === 'completed').length
-  const activeCount = allChallenges.filter(c => c.status === 'active').length
+  const activeCount = allChallenges.filter(c => getChallengeStatus(c) === 'active').length
+  const expiredCount = allChallenges.filter(c => getChallengeStatus(c) === 'expired').length
   const completedCount = allChallenges.filter(c => c.status === 'completed').length
   const bannedCount = users.filter(u => u.is_blacklisted).length
 
@@ -412,6 +418,7 @@ function Admin() {
         <div className="admin-stat-card"><span>绑定记录</span><strong>{bindSessions.length}</strong><small>完成 {completedBindCount}</small></div>
         <div className="admin-stat-card"><span>任务总数</span><strong>{allChallenges.length}</strong></div>
         <div className="admin-stat-card"><span>进行中</span><strong>{activeCount}</strong></div>
+        <div className="admin-stat-card"><span>已到期</span><strong>{expiredCount}</strong></div>
         <div className="admin-stat-card"><span>已完成</span><strong>{completedCount}</strong></div>
         <div className="admin-stat-card"><span>隐藏任务</span><strong>{hiddenCount}</strong></div>
       </div>
@@ -473,6 +480,17 @@ function Admin() {
               </label>
             </div>
             <div className="admin-form-row">
+              <label>任务有效期
+                <select value={challengeForm.validity_hours} onChange={e => setChallengeForm({ ...challengeForm, validity_hours: Number(e.target.value) })}>
+                  {VALIDITY_HOURS.map(hours => <option key={hours} value={hours}>{hours}小时</option>)}
+                </select>
+              </label>
+              {editingChallenge && <label className="admin-expiry-reset">重新开始计算有效期
+                <span><input type="checkbox" checked={Boolean(challengeForm.reset_expiry)} onChange={e => setChallengeForm({ ...challengeForm, reset_expiry: e.target.checked })} /> 保存时从现在起重设</span>
+                <small>当前到期：{formatExpiryTime(editingChallenge.expires_at)} · {getChallengeStatus(editingChallenge) === 'active' ? formatRemainingTime(editingChallenge.expires_at) : '已结束/到期'}</small>
+              </label>}
+            </div>
+            <div className="admin-form-row">
               <label>状态
                 <select value={challengeForm.status} onChange={e => setChallengeForm({ ...challengeForm, status: e.target.value })}>
                   <option value="active">进行中</option>
@@ -493,7 +511,7 @@ function Admin() {
               <table>
                 <thead>
                   <tr>
-                    <th>老板</th><th>创建者资料</th><th>标题</th><th>类型</th><th>礼物</th><th>数量</th><th>状态</th><th>隐藏数</th><th>创建时间</th><th>操作</th>
+                    <th>老板</th><th>创建者资料</th><th>标题</th><th>类型</th><th>礼物</th><th>数量</th><th>状态</th><th>有效期 / 到期</th><th>隐藏数</th><th>创建时间</th><th>操作</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -506,7 +524,8 @@ function Admin() {
                         <td>主任务</td>
                         <td>{GIFT_ICONS[c.gift_type]} {c.gift_type}</td>
                         <td>{c.gift_quantity}</td>
-                        <td>{c.status}</td>
+                        <td>{challengeStatusLabel(getChallengeStatus(c))}</td>
+                        <td>{c.validity_hours || 3}小时<br /><small>{formatExpiryTime(c.expires_at)}<br />{getChallengeStatus(c) === 'active' ? formatRemainingTime(c.expires_at) : '已结束/到期'}</small></td>
                         <td>{c.hidden_challenges?.length || 0}</td>
                         <td>{c.created_at ? new Date(c.created_at).toLocaleString('zh-CN') : '-'}</td>
                         <td>
@@ -522,7 +541,8 @@ function Admin() {
                           <td>🎁 隐藏</td>
                           <td>{GIFT_ICONS[h.gift_type]} {h.gift_type}</td>
                           <td>{h.gift_quantity}</td>
-                          <td>{h.status}</td>
+                          <td>{challengeStatusLabel(getChallengeStatus(h))}</td>
+                          <td>{h.validity_hours || 3}小时<br /><small>{formatExpiryTime(h.expires_at)}<br />{getChallengeStatus(h) === 'active' ? formatRemainingTime(h.expires_at) : '已结束/到期'}</small></td>
                           <td>-</td>
                           <td>{h.created_at ? new Date(h.created_at).toLocaleString('zh-CN') : '-'}</td>
                           <td>
