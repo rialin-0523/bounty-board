@@ -178,6 +178,33 @@ async function enrichCreatorRows(rows = []) {
   return rows.map(row => attachCreator(row, usersById))
 }
 
+function emptyFollowSummary() {
+  return {
+    count: 0,
+    acc: { 飞机: 0, 火箭: 0, 币: 0 },
+  }
+}
+
+async function followSummaryMap(challengeIds = []) {
+  const ids = [...new Set(challengeIds.filter(Boolean))]
+  const summaries = new Map(ids.map(id => [id, emptyFollowSummary()]))
+  if (ids.length === 0) return summaries
+
+  const rows = await many(
+    await db()
+      .from('follow_orders')
+      .select('challenge_id, gift_type, gift_quantity')
+      .in('challenge_id', ids)
+  )
+  for (const row of rows) {
+    const summary = summaries.get(row.challenge_id) || emptyFollowSummary()
+    summary.count += 1
+    summary.acc[row.gift_type] = (summary.acc[row.gift_type] || 0) + (Number(row.gift_quantity) || 0)
+    summaries.set(row.challenge_id, summary)
+  }
+  return summaries
+}
+
 export async function getUserRow(id) {
   return normalizeUserRow(await first(await db().from('users').select('*').eq('id', id).maybeSingle()))
 }
@@ -224,15 +251,20 @@ export async function listMainChallengesWithHiddenRows({ showAllHidden = false, 
 
   const visibleIds = new Set([...mains, ...visibleHiddens].map(row => row.created_by).filter(Boolean))
   const usersById = await userMapByIds([...visibleIds])
+  const followSummaries = await followSummaryMap([...mains, ...visibleHiddens].map(row => row.id))
 
   return sortChallenges(mains.map(row => decorateChallengeLifecycle(row))).map(main => {
     const children = visibleHiddens
       .filter(row => row.parent_challenge_id === main.id)
-      .map(row => decorateChallengeLifecycle(attachCreator(row, usersById)))
+      .map(row => ({
+        ...decorateChallengeLifecycle(attachCreator(row, usersById)),
+        follow_summary: followSummaries.get(row.id) || emptyFollowSummary(),
+      }))
     const allChildren = hiddens.filter(row => row.parent_challenge_id === main.id)
     const canSeeTotal = ctx.isAdmin || (ctx.user?.id && main.created_by === ctx.user.id)
     return {
       ...decorateChallengeLifecycle(attachCreator(main, usersById)),
+      follow_summary: followSummaries.get(main.id) || emptyFollowSummary(),
       hidden_challenges: children,
       hidden_total_count: canSeeTotal ? allChildren.length : children.length,
     }

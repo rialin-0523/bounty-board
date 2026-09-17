@@ -97,6 +97,13 @@ VITE_API_BASE_URL=https://api.xd.miyang.cloud
 
 高访问量注意：统一请求层只在 `POST / PUT / PATCH` 等有 body 的请求上带 `Content-Type: application/json`；普通 `GET` 不主动带这个头，避免 GitHub Pages 跨域请求 API 时每次都触发 CORS 预检。
 
+### 3.1 首屏资源与请求优化
+
+- 路由页面使用 React `lazy` + `Suspense`：首页只加载公共运行时、首页代码和首页样式；后台、绑定、发布、详情、登录页面按访问时加载。
+- 首页任务接口同时返回每个可见任务的 `follow_summary`，包含各礼物累计数量和跟单条数。首页不得恢复为“每个任务单独请求跟单接口”的 N+1 模式。
+- 当前本地构建的入口公共 JS 约 74 KB gzip，首页代码约 2 KB gzip；整个站点总资源仍会包含其它页面代码，但普通用户首次访问首页不会全部下载。
+- 头像链接要优先使用斗鱼小图版本；给图片设置 `loading="lazy"`、固定宽高和 `decoding="async"`，但不要误以为 CSS 缩小显示就能减少原图网络流量。
+
 ## 4. GitHub Pages 自动部署
 
 已新增：

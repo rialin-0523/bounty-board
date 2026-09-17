@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import Layout from '../components/Layout'
 import { useAuth } from '../context/useAuth'
-import { listMainChallengesWithHidden, aggregateFollowOrders, updateChallenge, GIFT_ICONS } from '../lib/api'
+import { aggregateFollowOrders, listMainChallengesWithHidden, updateChallenge, GIFT_ICONS } from '../lib/api'
 import { challengeStatusLabel, formatRemainingTime, getChallengeStatus, isChallengeActive } from '../lib/challengeExpiry'
 import './HomePage.css'
 
@@ -23,10 +23,19 @@ export default function HomePage() {
       const cs = await listMainChallengesWithHidden({ currentUserId: currentUser?.id || null })
       setChallenges(cs)
       const fm = {}
-      await Promise.all(cs.map(async c => {
-        fm[c.id] = await aggregateFollowOrders(c.id)
-        for (const h of c.hidden_challenges || []) fm[h.id] = await aggregateFollowOrders(h.id)
-      }))
+      const visibleRows = cs.flatMap(c => [c, ...(c.hidden_challenges || [])])
+      const hasBatchSummary = visibleRows.every(c => c.follow_summary)
+      if (!hasBatchSummary) {
+        await Promise.all(visibleRows.map(async c => {
+          fm[c.id] = await aggregateFollowOrders(c.id)
+        }))
+        setFollowMap(fm)
+        return
+      }
+      for (const c of cs) {
+        fm[c.id] = c.follow_summary || { acc: {} }
+        for (const h of c.hidden_challenges || []) fm[h.id] = h.follow_summary || { acc: {} }
+      }
       setFollowMap(fm)
     } catch (e) {
       console.error(e)
