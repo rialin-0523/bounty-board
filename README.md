@@ -196,6 +196,15 @@ node --check server/auth.mjs
 
 - 2026-09-08 已重新同步生产前端/后端构建，确保新增超级管理员账号在生产环境可直接登录后台。
 
+### 最近一次性能优化部署
+
+- GitHub `main` 已合并提交 `3662031`，GitHub Pages Actions 运行 `35248698651` 成功。
+- 前台 `https://xd.miyang.cloud/` 已提供懒加载路由和批量跟单汇总优化版本。
+- VPS `111.229.102.231` 已部署提交 `5f679b4` 对应代码；`bounty-board-api.service` 和 `bounty-board-douyu-worker.service` 均为 active，旧 `bounty-board-bind.service` 为 inactive。
+- API `https://api.xd.miyang.cloud/api/health` 返回 200；任务列表接口已确认返回 `follow_summary`。
+- 部署前代码备份：`/opt/bounty-board/backups/pre-deploy-20260917T165158Z-5f679b4/source.tar.gz`。
+- 数据库已确认存在 `challenges.validity_hours` 和 `challenges.expires_at`，本次没有重复执行迁移脚本。
+
 
 ### 生产 HTTPS 状态
 
