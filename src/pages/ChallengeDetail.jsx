@@ -13,6 +13,7 @@ import {
   GIFT_ICONS,
   GIFT_TYPES,
 } from '../lib/api'
+import { challengeStatusLabel, formatExpiryTime, formatRemainingTime, getChallengeStatus, isChallengeActive } from '../lib/challengeExpiry'
 import './ChallengeDetail.css'
 
 export default function ChallengeDetail() {
@@ -43,6 +44,7 @@ export default function ChallengeDetail() {
 
   const [submitting, setSubmitting] = useState(false)
   const [completing, setCompleting] = useState(false)
+  const [now, setNow] = useState(() => Date.now())
 
   const fetchAll = useCallback(async () => {
     setLoading(true)
@@ -86,6 +88,11 @@ export default function ChallengeDetail() {
     fetchAll()
   }, [fetchAll])
 
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 30000)
+    return () => window.clearInterval(timer)
+  }, [])
+
   function getTotal(c) {
     if (c.id === challenge?.id) {
       return c.gift_quantity + (followMain.acc[c.gift_type] || 0)
@@ -118,6 +125,10 @@ export default function ChallengeDetail() {
   }
 
   function openFollowForm(c) {
+    if (!isChallengeActive(c, now)) {
+      alert('任务已结束或到期，不能跟单')
+      return
+    }
     setFollowTarget(c)
     setShowFollowForm(true)
     setFollowForm({ gift_type: c.gift_type, gift_quantity: 1 })
@@ -155,6 +166,10 @@ export default function ChallengeDetail() {
   }
 
   function openHiddenForm() {
+    if (!isChallengeActive(challenge, now)) {
+      alert('主任务已结束或到期，不能添加隐藏任务')
+      return
+    }
     setShowHiddenForm(true)
     setHiddenForm({
       title: '',
@@ -207,6 +222,10 @@ export default function ChallengeDetail() {
   }
 
   async function handleComplete() {
+    if (!isChallengeActive(challenge, now)) {
+      alert('任务已结束或到期，不能标记完成')
+      return
+    }
     if (!confirm(`确认任务「${challenge.title}」已完成吗？`)) return
     setCompleting(true)
     try {
@@ -241,6 +260,7 @@ export default function ChallengeDetail() {
   if (!challenge) {
     return <Layout><div className="cd-loading">任务不存在</div></Layout>
   }
+  const challengeStatus = getChallengeStatus(challenge, now)
 
   return (
     <Layout>
@@ -249,8 +269,11 @@ export default function ChallengeDetail() {
 
         <div className="cd-main-card">
           <div className="cd-main-card-border"></div>
-          <div className="cd-status-tag">
-            {challenge.status === 'active' ? (isMain ? '主任务 · 进行中' : '隐藏任务 · 进行中') : challenge.status === 'completed' ? '已完成' : '已取消'}
+          <div className={`cd-status-tag cd-status-${challengeStatus}`}>
+            {isMain ? '主任务 · ' : '隐藏任务 · '}{challengeStatusLabel(challengeStatus)}
+          </div>
+          <div className={`cd-expiry ${challengeStatus === 'expired' ? 'is-expired' : ''}`}>
+            {challengeStatus === 'active' ? `⏳ ${formatRemainingTime(challenge.expires_at, now)}（${formatExpiryTime(challenge.expires_at)} 到期）` : challengeStatus === 'expired' ? '⌛ 任务已到期，不能再跟单或添加隐藏任务' : `有效期：${challenge.validity_hours || 3}小时`}
           </div>
 
           <div className="cd-boss-row">
@@ -300,10 +323,10 @@ export default function ChallengeDetail() {
           )}
 
           <div className="cd-actions">
-            <button className="cd-follow-btn" onClick={() => handleFollowClick(challenge)}>
-              + 跟单
+            <button className="cd-follow-btn" onClick={() => handleFollowClick(challenge)} disabled={challengeStatus !== 'active'}>
+              {challengeStatus === 'active' ? '+ 跟单' : '任务已结束'}
             </button>
-            {isMain && challenge.status === 'active' && currentUser && (
+            {isMain && challengeStatus === 'active' && currentUser && (
               <button
                 className="cd-add-hidden-btn-action"
                 onClick={handleAddHiddenClick}
@@ -311,7 +334,7 @@ export default function ChallengeDetail() {
                 🎁 + 隐藏任务
               </button>
             )}
-            {isMain && isMainCreator && challenge.status === 'active' && (
+            {isMain && isMainCreator && challengeStatus === 'active' && (
               <button
                 className="cd-complete-btn"
                 onClick={handleComplete}
@@ -335,10 +358,12 @@ export default function ChallengeDetail() {
             ) : (
               hiddenList.map(h => {
                 const fh = followHidden[h.id] || { orders: [], acc: {} }
+                const hiddenStatus = getChallengeStatus(h, now)
                 return (
                   <div key={h.id} className="cd-hidden-card">
                     <div className="cd-hidden-card-border"></div>
-                    <div className="cd-hidden-status">隐藏任务</div>
+                    <div className="cd-hidden-status">隐藏任务 · {challengeStatusLabel(hiddenStatus)}</div>
+                    <div className="cd-hidden-expiry">{hiddenStatus === 'active' ? formatRemainingTime(h.expires_at, now) : hiddenStatus === 'expired' ? '已到期' : `有效期：${h.validity_hours || 3}小时`}</div>
                     <div className="cd-boss-row small">
                       {bossAvatarNode(h, true)}
                       <div>
@@ -359,8 +384,8 @@ export default function ChallengeDetail() {
                       </div>
                     </div>
 
-                    <button className="cd-follow-btn small" onClick={() => handleFollowClick(h)}>
-                      + 跟单
+                    <button className="cd-follow-btn small" onClick={() => handleFollowClick(h)} disabled={hiddenStatus !== 'active'}>
+                      {hiddenStatus === 'active' ? '+ 跟单' : '任务已结束'}
                     </button>
                   </div>
                 )

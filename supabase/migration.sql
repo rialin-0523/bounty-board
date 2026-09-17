@@ -97,6 +97,8 @@ CREATE TABLE IF NOT EXISTS challenges (
   parent_challenge_id UUID REFERENCES challenges(id) ON DELETE CASCADE,
   created_by UUID REFERENCES users(id) ON DELETE SET NULL,
   status TEXT DEFAULT 'active' CHECK (status IN ('active', 'completed', 'cancelled')),
+  validity_hours INTEGER NOT NULL DEFAULT 3 CHECK (validity_hours IN (3, 5, 8, 12, 24)),
+  expires_at TIMESTAMPTZ NOT NULL DEFAULT (NOW() + INTERVAL '3 hours'),
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -105,6 +107,7 @@ CREATE INDEX IF NOT EXISTS idx_challenges_parent ON challenges(parent_challenge_
 CREATE INDEX IF NOT EXISTS idx_challenges_status ON challenges(status);
 CREATE INDEX IF NOT EXISTS idx_challenges_boss_id ON challenges(boss_id);
 CREATE INDEX IF NOT EXISTS idx_challenges_created_by ON challenges(created_by);
+CREATE INDEX IF NOT EXISTS idx_challenges_expires_at ON challenges(expires_at);
 
 -- 老表兼容：补加 created_by 列（如果旧表已存在）
 DO $$

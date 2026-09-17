@@ -118,6 +118,20 @@ BEGIN
       FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL;
   END IF;
 END $$;
+
+ALTER TABLE challenges ADD COLUMN IF NOT EXISTS validity_hours INTEGER;
+ALTER TABLE challenges ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ;
+UPDATE challenges
+SET validity_hours = COALESCE(validity_hours, 3),
+    expires_at = COALESCE(expires_at, created_at + INTERVAL '3 hours')
+WHERE validity_hours IS NULL OR expires_at IS NULL;
+ALTER TABLE challenges DROP CONSTRAINT IF EXISTS challenges_validity_hours_check;
+ALTER TABLE challenges ADD CONSTRAINT challenges_validity_hours_check
+  CHECK (validity_hours IN (3, 5, 8, 12, 24));
+ALTER TABLE challenges ALTER COLUMN validity_hours SET DEFAULT 3;
+ALTER TABLE challenges ALTER COLUMN validity_hours SET NOT NULL;
+ALTER TABLE challenges ALTER COLUMN expires_at SET NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_challenges_expires_at ON challenges(expires_at);
 CREATE INDEX IF NOT EXISTS idx_challenges_created_by ON challenges(created_by);
 
 DO $$

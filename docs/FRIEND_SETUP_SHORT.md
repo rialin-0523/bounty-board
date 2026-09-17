@@ -9,6 +9,14 @@
 supabase/binding_increment.sql
 ```
 
+3. 无论旧库还是新库，都执行：
+
+```text
+supabase/task_expiration_increment.sql
+```
+
+它会给任务表增加默认 3 小时的有效期和到期时间；旧任务按创建时间 + 3 小时回填，所以会显示为已到期，不会删除数据。
+
 3. 生产后端环境变量至少需要：
 
 ```bash
@@ -35,7 +43,7 @@ npm run worker:douyu    # 斗鱼 TCP Worker
 npm run dev             # 前端开发服务
 ```
 
-5. 大访问量生产部署：
+6. 大访问量生产部署：
 
 - 前端用 GitHub Pages，工作流在 `.github/workflows/deploy-pages.yml`。
 - Pages 构建时 `VITE_API_BASE_URL=https://api.xd.miyang.cloud`。
@@ -52,6 +60,7 @@ npm run dev             # 前端开发服务
 - `auth_sessions` 有登录记录。
 - `challenges.created_by` 和 `follow_orders.created_by` 有写入。
 - `settings.min_douyu_level` 能正常读取 / 修改。
+- 新任务默认 3 小时，发布时可选五档；后台勾选“重新开始计算有效期”后从当前时间延长；到期任务不能跟单或新增隐藏任务。
 - 普通前台发布、跟单、添加隐藏任务时不出现老板ID手填框；后端会按登录 Cookie 自动写 `boss_id` / `created_by`。
 
 详细文档看：

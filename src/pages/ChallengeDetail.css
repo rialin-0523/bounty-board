@@ -450,3 +450,9 @@
   color: #FFD700;
   border: 1px solid #FFD700;
 }
+
+.cd-expiry { color: #645000; font-size: .82rem; font-weight: 700; margin: -4px 0 12px; }
+.cd-expiry.is-expired { color: #a13700; }
+.cd-status-expired { background: #c76b00; }
+.cd-hidden-expiry { color: #d7b74c; font-size: .75rem; margin: 2px 0 8px; }
+.cd-follow-btn:disabled { background: #888; color: #eee; cursor: not-allowed; }

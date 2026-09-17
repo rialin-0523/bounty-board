@@ -2,6 +2,7 @@ import { nowIso, supabaseAdmin } from './config.mjs'
 
 const GIFT_TYPES = new Set(['飞机', '火箭', '币'])
 const CHALLENGE_STATUSES = new Set(['active', 'completed', 'cancelled'])
+const VALIDITY_HOURS = new Set([3, 5, 8, 12, 24])
 
 function db() {
   if (!supabaseAdmin) throw new Error('缺少 SUPABASE_SERVICE_ROLE_KEY，无法访问数据库')
@@ -49,11 +50,32 @@ async function many(result) {
   return result.data || []
 }
 
+function isChallengeExpired(row, now = Date.now()) {
+  if (!row || row.status !== 'active' || !row.expires_at) return false
+  const expiresAt = new Date(row.expires_at).getTime()
+  return Number.isFinite(expiresAt) && expiresAt <= now
+}
+
+function challengeStatus(row, now = Date.now()) {
+  if (!row) return 'cancelled'
+  return isChallengeExpired(row, now) ? 'expired' : row.status
+}
+
+function decorateChallengeLifecycle(row) {
+  if (!row) return row
+  const effectiveStatus = challengeStatus(row)
+  return {
+    ...row,
+    effective_status: effectiveStatus,
+    is_expired: effectiveStatus === 'expired',
+  }
+}
+
 function sortChallenges(rows) {
   return [...rows].sort((a, b) => {
-    const order = { active: 0, completed: 1, cancelled: 2 }
-    const oa = order[a.status] ?? 9
-    const ob = order[b.status] ?? 9
+    const order = { active: 0, expired: 1, completed: 2, cancelled: 3 }
+    const oa = order[a.effective_status || a.status] ?? 9
+    const ob = order[b.effective_status || b.status] ?? 9
     if (oa !== ob) return oa - ob
     return new Date(b.created_at || 0) - new Date(a.created_at || 0)
   })
@@ -188,7 +210,7 @@ export async function listChallengeRows({ includeHidden = true, showAllHidden = 
     if (allowAllHidden) return true
     return canSeeChallenge(row, parents.get(row.parent_challenge_id), ctx)
   })
-  return enrichCreatorRows(visibleRows)
+  return (await enrichCreatorRows(visibleRows)).map(decorateChallengeLifecycle)
 }
 
 export async function listMainChallengesWithHiddenRows({ showAllHidden = false, ctx = {} } = {}) {
@@ -203,12 +225,14 @@ export async function listMainChallengesWithHiddenRows({ showAllHidden = false, 
   const visibleIds = new Set([...mains, ...visibleHiddens].map(row => row.created_by).filter(Boolean))
   const usersById = await userMapByIds([...visibleIds])
 
-  return sortChallenges(mains).map(main => {
-    const children = visibleHiddens.filter(row => row.parent_challenge_id === main.id).map(row => attachCreator(row, usersById))
+  return sortChallenges(mains.map(row => decorateChallengeLifecycle(row))).map(main => {
+    const children = visibleHiddens
+      .filter(row => row.parent_challenge_id === main.id)
+      .map(row => decorateChallengeLifecycle(attachCreator(row, usersById)))
     const allChildren = hiddens.filter(row => row.parent_challenge_id === main.id)
     const canSeeTotal = ctx.isAdmin || (ctx.user?.id && main.created_by === ctx.user.id)
     return {
-      ...attachCreator(main, usersById),
+      ...decorateChallengeLifecycle(attachCreator(main, usersById)),
       hidden_challenges: children,
       hidden_total_count: canSeeTotal ? allChildren.length : children.length,
     }
@@ -218,7 +242,7 @@ export async function listMainChallengesWithHiddenRows({ showAllHidden = false, 
 export async function getChallengeRow(id, ctx = {}) {
   const row = await ensureCanSeeChallenge(id, ctx)
   const [enriched] = await enrichCreatorRows([row])
-  return enriched
+  return decorateChallengeLifecycle(enriched)
 }
 
 function validateGift(value) {
@@ -239,6 +263,21 @@ function positiveInt(value, label = '数量') {
   return n
 }
 
+function validateValidityHours(value) {
+  const hours = Number.parseInt(String(value ?? 3), 10)
+  if (!VALIDITY_HOURS.has(hours)) throw new Error('任务有效期只能选择3、5、8、12或24小时')
+  return hours
+}
+
+function expiresAtFromNow(hours) {
+  return new Date(Date.now() + hours * 60 * 60 * 1000).toISOString()
+}
+
+function ensureChallengeActive(row, message = '任务已到期，无法继续操作') {
+  if (challengeStatus(row) !== 'active') throw new Error(message)
+  return row
+}
+
 async function requireWritableUser(ctx) {
   if (ctx.isAdmin) return null
   const permission = await checkUserPermission(ctx.user)
@@ -257,7 +296,9 @@ export async function createChallengeRow(payload = {}, ctx = {}) {
     if (!parentId) throw new Error('隐藏任务必须关联主任务')
     const parent = await ensureCanSeeChallenge(parentId, ctx)
     if (parent.parent_challenge_id) throw new Error('隐藏任务只能关联主任务')
+    ensureChallengeActive(parent, '关联主任务已结束或到期，不能添加隐藏任务')
   }
+  const validityHours = validateValidityHours(payload.validity_hours)
   const row = {
     boss_id: bossId,
     title,
@@ -269,6 +310,8 @@ export async function createChallengeRow(payload = {}, ctx = {}) {
     parent_challenge_id: parentId,
     created_by: ctx.isAdmin ? (payload.created_by || null) : user.id,
     status: validateStatus(payload.status || 'active'),
+    validity_hours: validityHours,
+    expires_at: expiresAtFromNow(validityHours),
     created_at: nowIso(),
     updated_at: nowIso(),
   }
@@ -282,6 +325,7 @@ export async function updateChallengeRow(id, payload = {}, ctx = {}) {
   if (!ctx.isAdmin) {
     await requireWritableUser(ctx)
     if (existing.created_by !== ctx.user?.id) throw new Error('只有创建者可以修改这个任务')
+    ensureChallengeActive(existing, '任务已结束或到期，不能再修改')
   }
 
   const row = { updated_at: nowIso() }
@@ -296,6 +340,12 @@ export async function updateChallengeRow(id, payload = {}, ctx = {}) {
     if ('created_by' in payload) row.created_by = payload.created_by || null
     if ('is_hidden' in payload) row.is_hidden = Boolean(payload.is_hidden)
     if ('parent_challenge_id' in payload) row.parent_challenge_id = payload.parent_challenge_id || null
+    if (payload.reset_expiry === true || payload.reset_expiry === 'true') {
+      const validityHours = validateValidityHours(payload.validity_hours ?? existing.validity_hours ?? 3)
+      row.validity_hours = validityHours
+      row.expires_at = expiresAtFromNow(validityHours)
+      if (existing.status === 'active') row.status = 'active'
+    }
   } else {
     if ('status' in payload) row.status = validateStatus(payload.status)
   }
@@ -320,7 +370,8 @@ export async function createFollowOrderRow(payload = {}, ctx = {}) {
   const bossId = ctx.isAdmin ? String(payload.boss_id || '').trim() : userBossLabel(user)
   const challengeId = String(payload.challenge_id || '').trim()
   if (!challengeId) throw new Error('请选择任务')
-  await ensureCanSeeChallenge(challengeId, ctx)
+  const challenge = await ensureCanSeeChallenge(challengeId, ctx)
+  ensureChallengeActive(challenge, '任务已结束或到期，不能跟单')
   const row = {
     challenge_id: challengeId,
     boss_id: bossId,
