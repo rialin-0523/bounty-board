@@ -193,7 +193,7 @@ node --check server/auth.mjs
 2. 部署新的 API 服务（前端可由 GitHub Pages 自动发布）。
 3. 验证新任务默认 3 小时、五档可选、后台重新设置期限、到期后前端/接口均禁止跟单。
 
-> 说明：`xd.miyang.cloud` 已在服务器上通过 DNSPod DNS-01 签发 Let's Encrypt 证书，并配置为 HTTPS-only；`http://xd.miyang.cloud/` 当前直接拒绝连接，不再提供明文 HTTP 页面。
+> 说明（2026-09-17 复核）：前台已经切换为 GitHub Pages 托管，`https://xd.miyang.cloud/` 正常访问，GitHub Pages 证书状态为 approved。当前 Pages 的 `https_enforced` 仍为 `false`，所以 `http://xd.miyang.cloud/` 可能仍直接返回页面；要完全满足 HTTPS-only，需要仓库管理员在 GitHub 仓库 `Settings -> Pages` 打开 `Enforce HTTPS`。当前部署账号只有仓库写入权限，不能代替管理员修改这个设置。
 
 - 2026-09-08 已重新同步生产前端/后端构建，确保新增超级管理员账号在生产环境可直接登录后台。
 
@@ -206,16 +206,28 @@ node --check server/auth.mjs
 - 部署前代码备份：`/opt/bounty-board/backups/pre-deploy-20260917T165158Z-5f679b4/source.tar.gz`。
 - 数据库已确认存在 `challenges.validity_hours` 和 `challenges.expires_at`，本次没有重复执行迁移脚本。
 
+### 品牌与完整下单时间前端发布
+
+- 2026-09-17 合并 PR #8 到 GitHub `main`，合并提交为 `2d285094`。
+- GitHub Pages Actions 运行 `35254435806` 的 `build` 和 `deploy` 均成功。
+- 前台浏览器标题、品牌名称已更新为“亿星传媒”；“突围特工队”文案已移除。
+- 前台和后台下单/跟单记录显示完整的中国时间：`YYYY-MM-DD HH:mm:ss 星期几`。
+- 本次只发布 GitHub Pages 前端，不重启 VPS API 或斗鱼 Worker；API `/api/health` 仍返回 200。
+- 项目版本仍为 `v0.0.0`，没有新增 Git 标签或 GitHub Release。
+
 
 ### 生产 HTTPS 状态
 
+- 前台托管：GitHub Pages，绑定域名 `xd.miyang.cloud`。
+- GitHub Pages 证书：已批准，当前证书到期时间为 2026-12-13。
+- GitHub Pages 当前 `https_enforced=false`；HTTPS 可以访问，但 HTTP 前台尚未被强制跳转或拒绝。
 - 证书域名：`xd.miyang.cloud`
 - 证书路径：`/etc/letsencrypt/live/xd.miyang.cloud/fullchain.pem`
 - 私钥路径：`/etc/letsencrypt/live/xd.miyang.cloud/privkey.pem`
 - 到期时间：2026-12-05
 - 签发方式：Let's Encrypt + certbot manual DNS-01 + DNSPod API hook。
 - Nginx 配置：`/etc/nginx/conf.d/xd.miyang.cloud.conf`。
-- 当前策略：HTTPS 正常访问；HTTP 域名访问返回空连接；HTTPS IP 直连走默认拒绝站点，不提供悬赏令页面。
+- 当前策略：前台 HTTPS 正常访问；HTTP 前台是否跳转由 GitHub Pages 的 `Enforce HTTPS` 设置决定，当前尚未开启；API 的 HTTP 入口不提供正常响应，服务器 IP 直连不作为前台入口。
 - 续期提醒：DNSPod Token 只登记在全局敏感信息文档和服务器 hook 文件中，不能提交到 GitHub。
 
 ## 常见问题
