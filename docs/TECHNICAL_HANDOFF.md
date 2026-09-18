@@ -129,5 +129,7 @@ node --check server/auth.mjs
 - VPS：`111.229.102.231` 已部署优化提交 `5f679b4` 对应代码。
 - 服务：`bounty-board-api.service`、`bounty-board-douyu-worker.service` active；旧 `bounty-board-bind.service` inactive。
 - 公网验证：`https://api.xd.miyang.cloud/api/health` 返回 200；`/api/challenges/with-hidden` 返回 `follow_summary` 和生命周期字段；前台已返回优化后的入口 bundle。
+- 2026-09-19 首页自动刷新修复已合并到 `main`，合并提交 `5553e5a`；Pages Actions `35378965625` 成功，线上 HomePage chunk 已包含 `visibilitychange` 和 10 秒轮询逻辑。
+- API 已热修部署 `Cache-Control: no-store, max-age=0`，部署前备份：`/opt/bounty-board/backups/pre-deploy-auto-refresh-20260918T175604Z`；数据库未修改，斗鱼 Worker 未重启。
 - 管理员验证：`yjw1018594399` 和 `苦瓜` 两个超级管理员均可登录，用户管理接口正常返回记录。
 - 回滚备份：`/opt/bounty-board/backups/pre-deploy-20260917T165158Z-5f679b4/source.tar.gz`。

@@ -221,7 +221,7 @@ node --check server/auth.mjs
 - 前台浏览器标题、品牌名称已更新为“亿星传媒”；“突围特工队”文案已移除。
 - 前台和后台下单/跟单记录显示完整的中国时间：`YYYY-MM-DD HH:mm:ss 星期几`。
 - 本次只发布 GitHub Pages 前端，不重启 VPS API 或斗鱼 Worker；API `/api/health` 仍返回 200。
-- v0.0.1 的首页自动刷新修复待本次 GitHub 同步后创建同名 Git 标签和 GitHub Release。
+- v0.0.1 已合并到 GitHub `main`（`5553e5a`），Pages Actions `35378965625` 已成功，GitHub Release 和标签 `v0.0.1` 已创建。
 
 
 ### 首页新任务自动刷新修复（v0.0.1）
@@ -230,6 +230,7 @@ node --check server/auth.mjs
 - 自动检查不会清空已经显示的任务，也不会反复显示“加载中”。
 - 前端请求和 API JSON 响应均使用 `no-store`，避免浏览器、代理或 CDN 返回旧任务列表。
 - 本版本不修改数据库，不改变斗鱼 Worker 监听逻辑。
+- API 已部署到 VPS，备份位于 `/opt/bounty-board/backups/pre-deploy-auto-refresh-20260918T175604Z`；线上 `/api/health` 返回 200，任务接口返回 `Cache-Control: no-store`。
 
 ### 生产 HTTPS 状态
 
