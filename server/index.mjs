@@ -106,6 +106,7 @@ function json(req, res, status, data, headers = {}) {
   res.writeHead(status, {
     'Content-Type': 'application/json; charset=utf-8',
     'Content-Length': Buffer.byteLength(body),
+    'Cache-Control': 'no-store, max-age=0',
     ...corsHeaders(req),
     ...headers,
   })

@@ -17,6 +17,7 @@ export async function requestJson(path, options = {}) {
   }
   const response = await fetch(apiUrl(path), {
     credentials: 'include',
+    cache: 'no-store',
     headers: finalHeaders,
     ...rest,
   })
