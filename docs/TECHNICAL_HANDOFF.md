@@ -59,8 +59,10 @@
 - 前端请求统一走 `src/lib/http.js`。
 - `src/App.jsx` 使用 React 路由懒加载；首页首屏不加载后台、绑定、发布、详情和登录页代码。
 - `GET /api/challenges/with-hidden` 会同时返回可见任务的 `follow_summary`，首页不再针对每个任务单独请求跟单数据，避免任务数量增长导致请求数量线性放大。
+- 首页打开后每 10 秒静默轮询一次这个批量接口；浏览器切到后台时暂停，重新回到前台时立即检查。轮询期间保留现有任务，不显示首屏加载遮罩，避免用户看到页面闪烁。
 - GitHub Pages 构建时配置 `VITE_API_BASE_URL=https://api.xd.miyang.cloud`。
 - `src/lib/http.js` 只在有 body 时带 JSON `Content-Type`，GET 不带，避免跨域 API 在大访问量下产生额外 CORS 预检压力。
+- `src/lib/http.js` 的请求使用 `cache: no-store`，Node API 的 JSON 响应返回 `Cache-Control: no-store, max-age=0`；任务列表不能依赖浏览器或代理缓存。
 - 前端不再直接调用 Supabase 表，避免隐藏任务、用户、后台配置只靠前端过滤。
 - 后台登录改为后端校验，并由后端写入 HttpOnly 管理员 Cookie；管理员密码不应出现在前端 bundle。
 
@@ -114,6 +116,7 @@ node --check server/auth.mjs
 - 如果主分支数据库还没有 `users` / `settings` / `created_by`，先跑 `supabase/binding_increment.sql` 或直接按 `supabase/migration.sql` 初始化。
 - 为已有生产任务加时效时，先执行 `supabase/task_expiration_increment.sql`，再部署 API；否则新 API 写入 `validity_hours / expires_at` 会失败。
 - 如果以后重新编写首页任务接口，必须保留 `follow_summary` 的批量返回；不要恢复“列表接口 + 每个任务一个跟单请求”的 N+1 请求模式。
+- 首页自动刷新只用于展示层；不要把“浏览器轮询”误当成斗鱼弹幕监听。斗鱼 TCP 监听仍由独立 Worker 负责，不能为了刷新任务把 Worker 合回 HTTP API。
 
 ## 8. 分离部署重点提醒
 

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import Layout from '../components/Layout'
 import { useAuth } from '../context/useAuth'
@@ -16,9 +16,12 @@ export default function HomePage() {
   const [giftFilter, setGiftFilter] = useState('全部')
   const [busy, setBusy] = useState(null)
   const [now, setNow] = useState(() => Date.now())
+  const fetchingRef = useRef(false)
 
-  const fetchAll = useCallback(async () => {
-    setLoading(true)
+  const fetchAll = useCallback(async ({ silent = false } = {}) => {
+    if (fetchingRef.current) return
+    fetchingRef.current = true
+    if (!silent) setLoading(true)
     try {
       const cs = await listMainChallengesWithHidden({ currentUserId: currentUser?.id || null })
       setChallenges(cs)
@@ -40,13 +43,25 @@ export default function HomePage() {
     } catch (e) {
       console.error(e)
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
+      fetchingRef.current = false
     }
   }, [currentUser])
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchAll()
+  }, [fetchAll])
+  useEffect(() => {
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') fetchAll({ silent: true })
+    }
+    const timer = window.setInterval(refreshWhenVisible, 10000)
+    document.addEventListener('visibilitychange', refreshWhenVisible)
+    return () => {
+      window.clearInterval(timer)
+      document.removeEventListener('visibilitychange', refreshWhenVisible)
+    }
   }, [fetchAll])
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 30000)
