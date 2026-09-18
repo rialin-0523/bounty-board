@@ -23,6 +23,7 @@ import {
   deleteUserRow,
   getBooleanParam,
   getChallengeRow,
+  getChallengeDetailRow,
   getSettingValue,
   getUserByDouyuUid,
   getUserRow,
@@ -50,6 +51,44 @@ const ADMIN_COOKIE = 'bounty_admin_auth'
 const ADMIN_SESSION_TTL_SECONDS = Number(process.env.ADMIN_SESSION_TTL_SECONDS || 60 * 60 * 12)
 const ADMIN_SESSION_SECRET = process.env.ADMIN_SESSION_SECRET || SUPABASE_SERVICE_ROLE_KEY || ''
 const ADMIN_CREDENTIALS = loadAdminCredentials()
+const MAX_BODY_BYTES = 256 * 1024
+const rateBuckets = new Map()
+
+function requestIp(req) {
+  const forwarded = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim()
+  return forwarded || String(req.headers['x-real-ip'] || req.socket.remoteAddress || 'unknown')
+}
+
+function rateRule(path, method) {
+  if (path === '/api/auth/login' || path === '/api/admin/login') return { limit: 5, windowMs: 60_000 }
+  if (path === '/api/bind/sessions' && method === 'POST') return { limit: 3, windowMs: 60_000 }
+  if (/^\/api\/bind\/sessions\/[^/]+$/.test(path)) return { limit: 30, windowMs: 60_000 }
+  if (path === '/api/follow-orders' && method === 'POST') return { limit: 10, windowMs: 60_000 }
+  if (path === '/api/challenges' && method === 'POST') return { limit: 5, windowMs: 60_000 }
+  if (path.startsWith('/api/admin/')) return { limit: 30, windowMs: 60_000 }
+  if (path.startsWith('/api/challenges')) return { limit: 60, windowMs: 60_000 }
+  return null
+}
+
+function checkRateLimit(req) {
+  const rule = rateRule(new URL(req.url || '/', BASE_URL).pathname, req.method)
+  if (!rule) return null
+  const key = `${requestIp(req)}:${rule.limit}:${rule.windowMs}`
+  const now = Date.now()
+  const bucket = rateBuckets.get(key)
+  if (!bucket || now - bucket.startedAt >= rule.windowMs) {
+    rateBuckets.set(key, { startedAt: now, count: 1 })
+    return null
+  }
+  bucket.count += 1
+  if (bucket.count > rule.limit) return Math.max(1, Math.ceil((rule.windowMs - (now - bucket.startedAt)) / 1000))
+  return null
+}
+
+setInterval(() => {
+  const cutoff = Date.now() - 120_000
+  for (const [key, bucket] of rateBuckets) if (bucket.startedAt < cutoff) rateBuckets.delete(key)
+}, 60_000).unref()
 
 function loadAdminCredentials() {
   const out = []
@@ -115,7 +154,16 @@ function json(req, res, status, data, headers = {}) {
 
 async function readJson(req) {
   const chunks = []
-  for await (const chunk of req) chunks.push(chunk)
+  let size = 0
+  for await (const chunk of req) {
+    size += chunk.length
+    if (size > MAX_BODY_BYTES) {
+      const error = new Error('请求内容过大')
+      error.statusCode = 413
+      throw error
+    }
+    chunks.push(chunk)
+  }
   const raw = Buffer.concat(chunks).toString('utf8')
   if (!raw) return {}
   return JSON.parse(raw)
@@ -227,6 +275,11 @@ async function handleApi(req, res, url) {
     })
   }
 
+  const retryAfter = checkRateLimit(req)
+  if (retryAfter) {
+    return json(req, res, 429, { ok: false, reason: '请求过于频繁，请稍后再试' }, { 'Retry-After': String(retryAfter) })
+  }
+
   if (url.pathname === '/api/admin/login' && req.method === 'POST') {
     if (ADMIN_CREDENTIALS.length === 0 || !ADMIN_SESSION_SECRET) {
       return json(req, res, 503, { ok: false, reason: '管理员账号未配置' })
@@ -306,6 +359,14 @@ async function handleApi(req, res, url) {
   }
 
   const ctx = await requestContext(req)
+
+  const requiresLogin = url.pathname === '/api/challenges'
+    || url.pathname === '/api/challenges/with-hidden'
+    || /^\/api\/challenges\/[^/]+(?:\/follow-orders|\/detail)?$/.test(url.pathname)
+    || url.pathname === '/api/follow-orders'
+  if (requiresLogin && !ctx.user && !ctx.isAdmin) {
+    return json(req, res, 401, { ok: false, reason: '请先登录' })
+  }
 
   if (url.pathname === '/api/auth/permission' && req.method === 'GET') {
     return json(req, res, 200, { ok: true, permission: await checkUserPermission(ctx.user) })
@@ -393,6 +454,15 @@ async function handleApi(req, res, url) {
     return json(req, res, 200, { ok: true, followOrders })
   }
 
+  const challengeDetailMatch = url.pathname.match(/^\/api\/challenges\/([^/]+)\/detail$/)
+  if (challengeDetailMatch && req.method === 'GET') {
+    const detail = await getChallengeDetailRow(challengeDetailMatch[1], {
+      followLimit: url.searchParams.get('followLimit') || 50,
+      ctx,
+    })
+    return json(req, res, 200, { ok: true, ...detail })
+  }
+
   const challengeMatch = url.pathname.match(/^\/api\/challenges\/([^/]+)$/)
   if (challengeMatch && req.method === 'GET') {
     return json(req, res, 200, { ok: true, challenge: await getChallengeRow(challengeMatch[1], ctx) })
@@ -431,12 +501,16 @@ const server = http.createServer((req, res) => {
   if (url.pathname.startsWith('/api/')) {
     handleApi(req, res, url).catch(err => {
       console.error('[api]', err)
-      json(req, res, 500, { ok: false, reason: err.message || '服务器错误' })
+      json(req, res, err.statusCode || 500, { ok: false, reason: err.message || '服务器错误' })
     })
     return
   }
   json(req, res, 404, { ok: false, reason: 'Not found' })
 })
+
+server.requestTimeout = 15_000
+server.headersTimeout = 10_000
+server.keepAliveTimeout = 5_000
 
 server.listen(PORT, () => {
   console.log(`[api] listening on ${PORT}`)

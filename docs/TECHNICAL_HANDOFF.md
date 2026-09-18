@@ -17,6 +17,7 @@
 - 数据库迁移：`supabase/migration.sql`
 - 已有数据库增量脚本：`supabase/binding_increment.sql`
 - 已上线库的任务时效增量脚本：`supabase/task_expiration_increment.sql`
+- 性能与防重复提交增量脚本：`supabase/performance_increment.sql`
 
 ## 3. 关键规则
 
@@ -45,6 +46,7 @@
 - 普通用户的 `boss_id` / `created_by` 必须由后端按登录 Cookie 自动写入，不能相信前端表单或浏览器请求传来的身份字段；管理员后台仍可手动维护任务显示信息。
 - 隐藏任务只对创建者自己、以及主任务创建者可见。
 - 首页和详情页都按登录用户做可见性过滤。
+- 未登录只能打开 `/login` 和 `/bind`；任务首页、任务详情、发布页及对应 API 都要求站内登录。管理员使用独立管理员 Cookie，不受普通用户 API 门禁影响。
 
 ### 3.4 斗鱼绑定
 
@@ -65,6 +67,9 @@
 - `src/lib/http.js` 的请求使用 `cache: no-store`，Node API 的 JSON 响应返回 `Cache-Control: no-store, max-age=0`；任务列表不能依赖浏览器或代理缓存。
 - 前端不再直接调用 Supabase 表，避免隐藏任务、用户、后台配置只靠前端过滤。
 - 后台登录改为后端校验，并由后端写入 HttpOnly 管理员 Cookie；管理员密码不应出现在前端 bundle。
+- `src/lib/http.js` 默认 15 秒超时；API 限制 JSON 请求体 256 KB、Node 请求超时 15 秒，并按来源 IP 对登录、绑定码、任务、跟单和后台接口限流，超限返回 429。
+- 详情页统一请求 `GET /api/challenges/:id/detail?followLimit=50`，一次返回可见任务关系、数据库汇总和限量跟单记录，避免详情页 N+1 请求。
+- 跟单请求由前端生成 `request_id`；执行 `supabase/performance_increment.sql` 后，数据库唯一索引保证重复提交不会产生重复记录。SQL 未执行前后端会自动退回兼容模式。
 
 ## 4. 启动方式
 
@@ -115,6 +120,8 @@ node --check server/auth.mjs
 - 斗鱼监听只在有有效绑定码时启动，空闲会自动停。
 - 如果主分支数据库还没有 `users` / `settings` / `created_by`，先跑 `supabase/binding_increment.sql` 或直接按 `supabase/migration.sql` 初始化。
 - 为已有生产任务加时效时，先执行 `supabase/task_expiration_increment.sql`，再部署 API；否则新 API 写入 `validity_hours / expires_at` 会失败。
+- `supabase/performance_increment.sql` 需由数据库维护者在 Supabase SQL Editor 执行；执行前先确认历史数据无重复的非空 `request_id`。
+- 不要把详情页恢复为“任务详情 + 全部任务 + 每个隐藏任务跟单”的串行请求链；必须继续使用详情聚合接口。
 - 如果以后重新编写首页任务接口，必须保留 `follow_summary` 的批量返回；不要恢复“列表接口 + 每个任务一个跟单请求”的 N+1 请求模式。
 - 首页自动刷新只用于展示层；不要把“浏览器轮询”误当成斗鱼弹幕监听。斗鱼 TCP 监听仍由独立 Worker 负责，不能为了刷新任务把 Worker 合回 HTTP API。
 

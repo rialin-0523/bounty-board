@@ -3,9 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import Layout from '../components/Layout'
 import { useAuth } from '../context/useAuth'
 import {
-  getChallenge,
-  listChallenges,
-  aggregateFollowOrders,
+  getChallengeDetail,
   createFollowOrder,
   createChallenge,
   updateChallenge,
@@ -49,39 +47,28 @@ export default function ChallengeDetail() {
   const fetchAll = useCallback(async () => {
     setLoading(true)
     try {
-      const c = await getChallenge(id)
+      const detail = await getChallengeDetail(id, { followLimit: 50 })
+      const c = detail.challenge
       setChallenge(c)
-
-      let hiddens = []
-      if (c.parent_challenge_id == null) {
-        const all = await listChallenges()
-        hiddens = all.filter(h => {
-          if (h.parent_challenge_id !== c.id) return false
-          if (!currentUser) return false
-          if (h.created_by === currentUser.id) return true
-          return c.created_by === currentUser.id
-        })
-        setHiddenList(hiddens)
-        setHiddenTotal(all.filter(h => h.parent_challenge_id === c.id).length)
-      }
-
-      const fm = await aggregateFollowOrders(c.id)
-      setFollowMain(fm)
-
-      const fh = {}
-      await Promise.all(
-        hiddens.map(async h => {
-          fh[h.id] = await aggregateFollowOrders(h.id)
-        })
-      )
-      setFollowHidden(fh)
+      setHiddenList(detail.hiddenChallenges || [])
+      setHiddenTotal(detail.hiddenTotalCount || 0)
+      const mainSummary = c?.follow_summary || detail.followSummary || { count: 0, acc: {} }
+      setFollowMain({ orders: detail.followOrders || [], acc: mainSummary.acc || {} })
+      const hiddenFollow = {}
+      ;(detail.hiddenChallenges || []).forEach(hidden => {
+        hiddenFollow[hidden.id] = {
+          orders: hidden.follow_orders || [],
+          acc: hidden.follow_summary?.acc || {},
+        }
+      })
+      setFollowHidden(hiddenFollow)
     } catch (e) {
       console.error(e)
       alert('加载失败：' + e.message)
     } finally {
       setLoading(false)
     }
-  }, [id, currentUser])
+  }, [id])
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect

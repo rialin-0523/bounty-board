@@ -15,12 +15,20 @@ export async function requestJson(path, options = {}) {
   if (hasBody && !hasContentType) {
     finalHeaders['Content-Type'] = 'application/json'
   }
-  const response = await fetch(apiUrl(path), {
-    credentials: 'include',
-    cache: 'no-store',
-    headers: finalHeaders,
+  const controller = new AbortController()
+  const timeout = window.setTimeout(() => controller.abort(), 15_000)
+  let response
+  try {
+    response = await fetch(apiUrl(path), {
+      credentials: 'include',
+      cache: 'no-store',
     ...rest,
-  })
+    headers: finalHeaders,
+    signal: rest.signal || controller.signal,
+    })
+  } finally {
+    window.clearTimeout(timeout)
+  }
   const data = await response.json().catch(() => null)
   if (!response.ok || (data && data.ok === false)) {
     throw new Error(data?.reason || `请求失败：${response.status}`)

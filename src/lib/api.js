@@ -167,6 +167,11 @@ export async function getChallenge(id) {
   return data.challenge
 }
 
+export async function getChallengeDetail(id, { followLimit = 50 } = {}) {
+  const data = await requestJson(`/api/challenges/${encodeURIComponent(id)}/detail${queryString({ followLimit })}`)
+  return data
+}
+
 export async function createChallenge(payload) {
   const data = await requestJson('/api/challenges', {
     method: 'POST',
@@ -205,9 +210,10 @@ export async function aggregateFollowOrders(challengeId) {
 }
 
 export async function createFollowOrder(payload) {
+  const requestId = payload.request_id || (globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`)
   const data = await requestJson('/api/follow-orders', {
     method: 'POST',
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ ...payload, request_id: requestId }),
   })
   return data.followOrder
 }

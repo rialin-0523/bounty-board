@@ -340,5 +340,6 @@ supabase/api_only_rls_hardening.sql
 - `supabase/migration.sql`
 - `supabase/binding_increment.sql`
 - `supabase/task_expiration_increment.sql`（已上线库新增任务时效）
+- `supabase/performance_increment.sql`（任务/跟单查询索引、跟单汇总视图、重复提交幂等字段）
 
 如果你朋友要直接改库，优先看这两个文件。
