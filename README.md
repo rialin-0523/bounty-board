@@ -197,6 +197,12 @@ node --check server/auth.mjs
 
 - 2026-09-08 已重新同步生产前端/后端构建，确保新增超级管理员账号在生产环境可直接登录后台。
 
+### 用户名规则更新
+
+- 用户名现在支持中文、英文字母和数字，可混合使用，长度为 2-20 位。
+- 用户名仍不允许空格、下划线、标点、表情或其它特殊字符。
+- 2026-09-19 已发布到 GitHub Pages；API 校验已同步部署到 VPS，部署前备份位于 `/opt/bounty-board/backups/pre-deploy-username-digits-20260918T173212Z`。
+
 ### 最近一次性能优化部署
 
 - GitHub `main` 已合并提交 `3662031`，GitHub Pages Actions 运行 `35248698651` 成功。
