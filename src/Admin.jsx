@@ -94,10 +94,18 @@ function Admin() {
 
   const loadAllFollowOrders = useCallback(async () => {
     const all = await listChallenges()
+    const challengeMap = new Map(all.map(c => [c.id, c]))
     const all2 = []
     for (const c of all) {
       const os = await listFollowOrders(c.id)
-      os.forEach(o => all2.push({ ...o, challenge_title: c.title }))
+      const parent = c.parent_challenge_id ? challengeMap.get(c.parent_challenge_id) : c
+      os.forEach(o => all2.push({
+        ...o,
+        challenge_title: c.title,
+        main_challenge_id: parent?.id || c.id,
+        main_challenge_title: parent?.title || c.title,
+        is_hidden_challenge: Boolean(c.parent_challenge_id),
+      }))
     }
     return all2
   }, [])
@@ -603,13 +611,22 @@ function Admin() {
               <table>
                 <thead>
                   <tr>
-                    <th>任务</th><th>老板ID</th><th>创建者资料</th><th>礼物</th><th>数量</th><th>时间</th><th>操作</th>
+                    <th>主任务</th><th>跟单任务</th><th>老板ID</th><th>创建者资料</th><th>礼物</th><th>数量</th><th>时间</th><th>操作</th>
                   </tr>
                 </thead>
                 <tbody>
                   {followOrders.map(o => (
                     <tr key={o.id}>
-                      <td>{o.challenge_title}</td>
+                      <td>
+                        <div className="admin-follow-main-title">{o.main_challenge_title || o.challenge_title || '未关联主任务'}</div>
+                        <small className="admin-follow-main-id">主任务</small>
+                      </td>
+                      <td>
+                        <div className={o.is_hidden_challenge ? 'admin-follow-child-title' : 'admin-follow-main-title'}>
+                          {o.is_hidden_challenge ? o.challenge_title : '主任务跟单'}
+                        </div>
+                        {o.is_hidden_challenge && <small className="admin-follow-child-label">隐藏任务</small>}
+                      </td>
                       <td>{o.boss_id}</td>
                       <td><div className="admin-user-mini">{adminAvatar(o, 'small')}<span>{creatorSummary(o)}</span></div></td>
                       <td>{GIFT_ICONS[o.gift_type]} {o.gift_type}</td>
