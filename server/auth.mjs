@@ -29,7 +29,7 @@ export function normalizeUsername(value) {
 }
 
 export function isValidUsername(value) {
-  return /^[A-Za-z\u4E00-\u9FFF]{2,20}$/.test(String(value || '').trim())
+  return /^[A-Za-z0-9\u4E00-\u9FFF]{2,20}$/.test(String(value || '').trim())
 }
 
 export function isValidPassword(value) {
