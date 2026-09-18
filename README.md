@@ -282,3 +282,9 @@ node --check server/auth.mjs
 - `docs/FRIEND_SETUP_SHORT.md`
 - `docs/SQL_DATABASE.md`
 - `docs/GITHUB_PAGES_API_WORKER_SPLIT.md`
+
+### 后台跟单记录优化（v0.0.2）
+
+- 后台“跟单管理”现在同时显示“主任务”和“跟单任务”。
+- 主任务跟单会显示“主任务跟单”；隐藏任务跟单会显示所属主任务标题，并标记“隐藏任务”。
+- 本次只修改后台展示和前端版本号，不修改数据库，不改变跟单数据。
