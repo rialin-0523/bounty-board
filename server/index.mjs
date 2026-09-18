@@ -271,7 +271,7 @@ async function handleApi(req, res, url) {
   const bindCompleteMatch = url.pathname.match(/^\/api\/bind\/sessions\/([^/]+)\/complete$/)
   if (bindCompleteMatch && req.method === 'POST') {
     const body = await readJson(req)
-    if (!isValidUsername(body.username)) return badRequest(req, res, '用户名只能包含中英文，长度 2-20 位')
+    if (!isValidUsername(body.username)) return badRequest(req, res, '用户名只能包含中文、英文字母或数字，长度 2-20 位')
     if (!isValidPassword(body.password)) return badRequest(req, res, '密码需 8-64 位，且包含字母和数字，并只使用可见字符')
     if (body.password !== body.passwordConfirm) return badRequest(req, res, '两次输入的密码不一致')
     const result = await completeBindSession(bindCompleteMatch[1], {

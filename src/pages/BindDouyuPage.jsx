@@ -171,7 +171,9 @@ export default function BindDouyuPage() {
                     <input
                       value={form.username}
                       onChange={e => setForm({ ...form, username: e.target.value })}
-                      placeholder="只允许中英文"
+                      placeholder="支持中文、英文字母或数字"
+                      pattern="[A-Za-z0-9\u4E00-\u9FFF]{2,20}"
+                      title="用户名只能包含中文、英文字母或数字，长度 2-20 位"
                       required
                     />
                   </label>
