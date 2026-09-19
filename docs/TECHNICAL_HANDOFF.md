@@ -140,3 +140,9 @@ node --check server/auth.mjs
 - API 已热修部署 `Cache-Control: no-store, max-age=0`，部署前备份：`/opt/bounty-board/backups/pre-deploy-auto-refresh-20260918T175604Z`；数据库未修改，斗鱼 Worker 未重启。
 - 管理员验证：`yjw1018594399` 和 `苦瓜` 两个超级管理员均可登录，用户管理接口正常返回记录。
 - 回滚备份：`/opt/bounty-board/backups/pre-deploy-20260917T165158Z-5f679b4/source.tar.gz`。
+
+## 2026-09-19 后台跟单主任务展示
+
+- 后台跟单管理加载全部任务后，会按 `parent_challenge_id` 建立任务关系。
+- 跟单记录同时显示 `main_challenge_title` 和当前 `challenge_title`；隐藏任务不会只显示自身标题而丢失主任务上下文。
+- 这次是前端展示适配，不需要数据库迁移，也不需要重启 API/斗鱼 Worker。
