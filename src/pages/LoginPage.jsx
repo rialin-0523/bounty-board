@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import Layout from '../components/Layout'
 import { useAuth } from '../context/useAuth'
 import './LoginPage.css'
@@ -11,6 +11,7 @@ const emptyForm = {
 
 export default function LoginPage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { user, signIn } = useAuth()
   const [form, setForm] = useState(emptyForm)
   const [loading, setLoading] = useState(false)
@@ -24,7 +25,8 @@ export default function LoginPage() {
       await signIn(form)
       setNotice('登录成功')
       setForm(emptyForm)
-      navigate('/')
+      const returnTo = searchParams.get('returnTo')
+      navigate(returnTo && returnTo.startsWith('/') && !returnTo.startsWith('//') ? returnTo : '/')
     } catch (err) {
       setNotice(err.message)
     } finally {
@@ -73,6 +75,9 @@ export default function LoginPage() {
               </button>
             </div>
           </form>
+          <div className="login-register-tip">
+            没有账号？<Link to="/bind">绑定斗鱼注册</Link>
+          </div>
         </div>
       </div>
     </Layout>

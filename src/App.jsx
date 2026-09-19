@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AuthProvider } from './context/AuthProvider'
+import { useAuth } from './context/useAuth'
 import './App.css'
 
 const HomePage = lazy(() => import('./pages/HomePage'))
@@ -17,6 +18,14 @@ function RouteLoading() {
     </div>
   )
 }
+function RequireAuth({ children }) {
+  const location = useLocation()
+  const { user, loading } = useAuth()
+  if (loading) return <RouteLoading />
+  if (user) return children
+  const returnTo = `${location.pathname}${location.search}${location.hash}`
+  return <Navigate to={`/login?returnTo=${encodeURIComponent(returnTo)}`} replace />
+}
 
 function App() {
   return (
@@ -24,10 +33,10 @@ function App() {
       <BrowserRouter>
         <Suspense fallback={<RouteLoading />}>
           <Routes>
-            <Route path="/" element={<HomePage />} />
+            <Route path="/" element={<RequireAuth><HomePage /></RequireAuth>} />
             <Route path="/challenges" element={<Navigate to="/" replace />} />
-            <Route path="/challenges/:id" element={<ChallengeDetail />} />
-            <Route path="/publish" element={<PublishPage />} />
+            <Route path="/challenges/:id" element={<RequireAuth><ChallengeDetail /></RequireAuth>} />
+            <Route path="/publish" element={<RequireAuth><PublishPage /></RequireAuth>} />
             <Route path="/admin" element={<Navigate to="/xiaoyangadmin" replace />} />
             <Route path="/xiaoyangadmin" element={<Admin />} />
             <Route path="/bind" element={<BindDouyuPage />} />

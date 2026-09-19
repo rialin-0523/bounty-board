@@ -190,7 +190,27 @@ async function followSummaryMap(challengeIds = []) {
   const summaries = new Map(ids.map(id => [id, emptyFollowSummary()]))
   if (ids.length === 0) return summaries
 
-  const rows = await many(
+  let rows
+  const summaryResult = await db()
+    .from('follow_order_summaries')
+    .select('*')
+    .in('challenge_id', ids)
+  if (!summaryResult.error) {
+    rows = summaryResult.data || []
+    for (const row of rows) {
+      summaries.set(row.challenge_id, {
+        count: Number(row.follow_count) || 0,
+        acc: {
+          飞机: Number(row.airplane_quantity) || 0,
+          火箭: Number(row.rocket_quantity) || 0,
+          币: Number(row.coin_quantity) || 0,
+        },
+      })
+    }
+    return summaries
+  }
+  if (!/follow_order_summaries|does not exist|不.*存在/i.test(String(summaryResult.error.message || summaryResult.error))) throw summaryResult.error
+  rows = await many(
     await db()
       .from('follow_orders')
       .select('challenge_id, gift_type, gift_quantity')
@@ -275,6 +295,49 @@ export async function getChallengeRow(id, ctx = {}) {
   const row = await ensureCanSeeChallenge(id, ctx)
   const [enriched] = await enrichCreatorRows([row])
   return decorateChallengeLifecycle(enriched)
+}
+
+export async function getChallengeDetailRow(id, { followLimit = 50, ctx = {} } = {}) {
+  const row = await ensureCanSeeChallenge(id, ctx)
+  const parent = row.parent_challenge_id ? await loadChallenge(row.parent_challenge_id) : row
+  const allRows = parent
+    ? await many(await db().from('challenges').select('*').eq('parent_challenge_id', parent.id).order('created_at', { ascending: false }))
+    : []
+  const visibleHidden = allRows.filter(child => canSeeChallenge(child, parent, ctx))
+  const detailRows = [row, ...(parent && parent.id !== row.id ? [parent] : []), ...visibleHidden]
+  const usersById = await userMapByIds(detailRows.map(item => item.created_by))
+  const ids = [...new Set(detailRows.map(item => item.id).filter(Boolean))]
+  const safeLimit = Math.min(Math.max(Number.parseInt(String(followLimit), 10) || 50, 1), 100)
+  const summaryMap = await followSummaryMap(ids)
+  const followRows = ids.length === 0
+    ? []
+    : await many(await db().from('follow_orders').select('*').in('challenge_id', ids).order('created_at', { ascending: false }).limit(safeLimit * ids.length))
+  const followUsersById = await userMapByIds(followRows.map(item => item.created_by))
+  const followByChallenge = new Map(ids.map(challengeId => [challengeId, []]))
+  for (const follow of followRows) {
+    const list = followByChallenge.get(follow.challenge_id) || []
+    if (list.length < safeLimit) list.push(attachCreator(follow, followUsersById))
+    followByChallenge.set(follow.challenge_id, list)
+  }
+  const toDetail = item => ({
+    ...decorateChallengeLifecycle(attachCreator(item, usersById)),
+    follow_summary: summaryMap.get(item.id) || { count: 0, acc: { 飞机: 0, 火箭: 0, 币: 0 } },
+    follow_orders: followByChallenge.get(item.id) || [],
+  })
+  const target = toDetail(row)
+  const mainChallenge = parent && parent.id !== row.id ? toDetail(parent) : null
+  const hiddenChallenges = parent && parent.id === row.id ? visibleHidden.map(toDetail) : []
+  const hiddenTotalCount = parent && parent.id === row.id
+    ? (ctx.isAdmin || ctx.user?.id === parent.created_by ? allRows.length : visibleHidden.length)
+    : 0
+ return {
+    challenge: target,
+    mainChallenge,
+    hiddenChallenges,
+    hiddenTotalCount,
+    followSummary: target.follow_summary,
+    followOrders: followByChallenge.get(row.id) || [],
+  }
 }
 
 function validateGift(value) {
@@ -412,8 +475,27 @@ export async function createFollowOrderRow(payload = {}, ctx = {}) {
     created_by: ctx.isAdmin ? (payload.created_by || null) : user.id,
     created_at: nowIso(),
   }
+  const requestId = String(payload.request_id || '').trim()
+  let requestIdColumnAvailable = false
+  if (requestId) {
+    const lookup = await db().from('follow_orders').select('*').eq('request_id', requestId).maybeSingle()
+    if (!lookup.error) {
+      requestIdColumnAvailable = true
+      if (lookup.data) return lookup.data
+    } else if (!/request_id|does not exist|不.*存在/i.test(String(lookup.error.message || lookup.error))) {
+      throw lookup.error
+    }
+  }
+  if (requestId && requestIdColumnAvailable) {
+    row.request_id = requestId
+  }
   if (!row.boss_id) throw new Error('请输入老板ID')
-  return first(await db().from('follow_orders').insert(row).select('*').single())
+  const inserted = await db().from('follow_orders').insert(row).select('*').single()
+  if (inserted.error && requestId && /duplicate|unique/i.test(String(inserted.error.message || inserted.error))) {
+    const existing = await first(await db().from('follow_orders').select('*').eq('request_id', requestId).maybeSingle())
+    if (existing) return existing
+  }
+  return first(inserted)
 }
 
 export async function deleteFollowOrderRow(id) {

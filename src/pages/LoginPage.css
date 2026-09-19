@@ -73,3 +73,20 @@
   opacity: 0.6;
   cursor: not-allowed;
 }
+
+ .login-register-tip {
+   margin-top: 18px;
+   color: #bdbdbd;
+   text-align: center;
+   font-size: 0.92rem;
+ }
+
+ .login-register-tip a {
+   color: #FFD700;
+   font-weight: 700;
+   text-decoration: none;
+ }
+
+ .login-register-tip a:hover {
+   text-decoration: underline;
+ }
