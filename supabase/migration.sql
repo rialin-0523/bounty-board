@@ -97,6 +97,10 @@ CREATE TABLE IF NOT EXISTS challenges (
   parent_challenge_id UUID REFERENCES challenges(id) ON DELETE CASCADE,
   created_by UUID REFERENCES users(id) ON DELETE SET NULL,
   status TEXT DEFAULT 'active' CHECK (status IN ('active', 'completed', 'cancelled')),
+  review_status TEXT NOT NULL DEFAULT 'pending' CHECK (review_status IN ('pending', 'approved', 'rejected')),
+  review_reason TEXT,
+  reviewed_at TIMESTAMPTZ,
+  reviewed_by TEXT,
   validity_hours INTEGER NOT NULL DEFAULT 3 CHECK (validity_hours IN (3, 5, 8, 12, 24)),
   expires_at TIMESTAMPTZ NOT NULL DEFAULT (NOW() + INTERVAL '3 hours'),
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -108,6 +112,7 @@ CREATE INDEX IF NOT EXISTS idx_challenges_status ON challenges(status);
 CREATE INDEX IF NOT EXISTS idx_challenges_boss_id ON challenges(boss_id);
 CREATE INDEX IF NOT EXISTS idx_challenges_created_by ON challenges(created_by);
 CREATE INDEX IF NOT EXISTS idx_challenges_expires_at ON challenges(expires_at);
+CREATE INDEX IF NOT EXISTS idx_challenges_review_status ON challenges(review_status);
 
 -- 老表兼容：补加 created_by 列（如果旧表已存在）
 DO $$
@@ -118,6 +123,38 @@ BEGIN
   ) THEN
     ALTER TABLE challenges ADD COLUMN created_by UUID;
   END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'challenges' AND column_name = 'review_status'
+  ) THEN
+    ALTER TABLE challenges ADD COLUMN review_status TEXT DEFAULT 'approved';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'challenges' AND column_name = 'review_reason'
+  ) THEN
+    ALTER TABLE challenges ADD COLUMN review_reason TEXT;
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'challenges' AND column_name = 'reviewed_at'
+  ) THEN
+    ALTER TABLE challenges ADD COLUMN reviewed_at TIMESTAMPTZ;
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'challenges' AND column_name = 'reviewed_by'
+  ) THEN
+    ALTER TABLE challenges ADD COLUMN reviewed_by TEXT;
+  END IF;
+  UPDATE challenges SET review_status = 'approved' WHERE review_status IS NULL;
+  ALTER TABLE challenges ALTER COLUMN review_status SET DEFAULT 'pending';
+  ALTER TABLE challenges ALTER COLUMN review_status SET NOT NULL;
+  ALTER TABLE challenges DROP CONSTRAINT IF EXISTS challenges_review_status_check;
+  ALTER TABLE challenges ADD CONSTRAINT challenges_review_status_check
+    CHECK (review_status IN ('pending', 'approved', 'rejected'));
+
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'users') THEN
     ALTER TABLE challenges DROP CONSTRAINT IF EXISTS challenges_created_by_fkey;
     ALTER TABLE challenges ADD CONSTRAINT challenges_created_by_fkey

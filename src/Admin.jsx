@@ -19,7 +19,7 @@ import {
   GIFT_ICONS,
 } from './lib/api'
 import { adminLogin, adminLogout, getAdminMe } from './lib/authApi'
-import { VALIDITY_HOURS, challengeStatusLabel, formatDateTimeWithWeekday, formatExpiryTime, formatRemainingTime, getChallengeStatus } from './lib/challengeExpiry'
+import { VALIDITY_HOURS, challengeStatusLabel, formatDateTimeWithWeekday, formatExpiryTime, formatRemainingTime, getChallengeStatus, reviewStatusLabel } from './lib/challengeExpiry'
 import './Admin.css'
 
 const emptyChallenge = {
@@ -288,6 +288,26 @@ function Admin() {
     }
   }
 
+  async function handleReviewChallenge(challenge, nextStatus) {
+    let reviewReason = ''
+    if (nextStatus === 'rejected') {
+      reviewReason = window.prompt(`请输入拒绝「${challenge.title}」的原因，下单人会看到：`) || ''
+      if (!reviewReason.trim()) return alert('拒绝必须填写原因')
+    } else if (!confirm(`确认通过「${challenge.title}」吗？通过后会公开显示，并从现在重新计算有效期。`)) {
+      return
+    }
+    try {
+      await updateChallenge(challenge.id, {
+        review_status: nextStatus,
+        review_reason: reviewReason.trim() || null,
+        validity_hours: Number(challenge.validity_hours || 3),
+      })
+      await fetchData()
+    } catch (err) {
+      alert('审核操作失败：' + err.message)
+    }
+  }
+
   async function handleFollowSubmit(e) {
     e.preventDefault()
     if (parseInt(followForm.gift_quantity) <= 0) {
@@ -442,6 +462,9 @@ function Admin() {
         <button className={`admin-tab ${activeTab === 'challenges' ? 'active' : ''}`} onClick={() => setActiveTab('challenges')}>
           任务管理
         </button>
+        <button className={`admin-tab ${activeTab === 'reviews' ? 'active' : ''}`} onClick={() => setActiveTab('reviews')}>
+          任务审核 ({allChallenges.filter(c => ['pending', 'rejected'].includes(c.review_status || 'approved')).length})
+        </button>
         <button className={`admin-tab ${activeTab === 'follows' ? 'active' : ''}`} onClick={() => setActiveTab('follows')}>
           跟单管理
         </button>
@@ -519,7 +542,7 @@ function Admin() {
               <table>
                 <thead>
                   <tr>
-                    <th>老板</th><th>创建者资料</th><th>标题</th><th>类型</th><th>礼物</th><th>数量</th><th>状态</th><th>有效期 / 到期</th><th>隐藏数</th><th>创建时间</th><th>操作</th>
+                    <th>老板</th><th>创建者资料</th><th>标题</th><th>类型</th><th>礼物</th><th>数量</th><th>审核</th><th>状态</th><th>有效期 / 到期</th><th>隐藏数</th><th>创建时间</th><th>操作</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -532,6 +555,7 @@ function Admin() {
                         <td>主任务</td>
                         <td>{GIFT_ICONS[c.gift_type]} {c.gift_type}</td>
                         <td>{c.gift_quantity}</td>
+                        <td>{reviewStatusLabel(c.review_status)}</td>
                         <td>{challengeStatusLabel(getChallengeStatus(c))}</td>
                         <td>{c.validity_hours || 3}小时<br /><small>{formatExpiryTime(c.expires_at)}<br />{getChallengeStatus(c) === 'active' ? formatRemainingTime(c.expires_at) : '已结束/到期'}</small></td>
                         <td>{c.hidden_challenges?.length || 0}</td>
@@ -549,6 +573,7 @@ function Admin() {
                           <td>🎁 隐藏</td>
                           <td>{GIFT_ICONS[h.gift_type]} {h.gift_type}</td>
                           <td>{h.gift_quantity}</td>
+                          <td>{reviewStatusLabel(h.review_status)}</td>
                           <td>{challengeStatusLabel(getChallengeStatus(h))}</td>
                           <td>{h.validity_hours || 3}小时<br /><small>{formatExpiryTime(h.expires_at)}<br />{getChallengeStatus(h) === 'active' ? formatRemainingTime(h.expires_at) : '已结束/到期'}</small></td>
                           <td>-</td>
@@ -560,6 +585,40 @@ function Admin() {
                         </tr>
                       ))}
                     </Fragment>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'reviews' && (
+        <div className="admin-panel">
+          <div className="admin-list">
+            <h3>任务审核</h3>
+            <p className="admin-help-text">用户提交的新单默认进入“待审核”；通过后才会在前台公开显示，且有效期从通过时重新开始计算。拒绝必须填写原因，下单人可修改后重新提交。</p>
+            {allChallenges.filter(c => ['pending', 'rejected'].includes(c.review_status || 'approved')).length === 0 ? <div className="admin-empty">暂无待处理任务</div> : (
+              <table>
+                <thead><tr><th>审核状态</th><th>类型</th><th>下单人</th><th>标题</th><th>条件/描述</th><th>礼物</th><th>有效期</th><th>拒绝原因</th><th>提交时间</th><th>操作</th></tr></thead>
+                <tbody>
+                  {allChallenges.filter(c => ['pending', 'rejected'].includes(c.review_status || 'approved')).map(c => (
+                    <tr key={c.id} className={c.review_status === 'rejected' ? 'admin-row-banned' : ''}>
+                      <td>{reviewStatusLabel(c.review_status)}</td>
+                      <td>{c.parent_challenge_id ? '隐藏任务' : '主任务'}</td>
+                      <td><div className="admin-user-mini">{adminAvatar(c, 'small')}<span>{creatorSummary(c)}</span></div></td>
+                      <td>{c.title}</td>
+                      <td><div>{c.condition_desc || '-'}</div><small>{c.description || ''}</small></td>
+                      <td>{GIFT_ICONS[c.gift_type]} {c.gift_type} x {c.gift_quantity}</td>
+                      <td>{c.validity_hours || 3}小时</td>
+                      <td>{c.review_reason || '-'}</td>
+                      <td>{formatDateTimeWithWeekday(c.created_at)}</td>
+                      <td>
+                        <button className="admin-btn-primary" onClick={() => handleReviewChallenge(c, 'approved')}>通过</button>
+                        <button className="admin-btn-danger" onClick={() => handleReviewChallenge(c, 'rejected')}>拒绝</button>
+                        <button onClick={() => editChallenge(c)}>编辑</button>
+                      </td>
+                    </tr>
                   ))}
                 </tbody>
               </table>

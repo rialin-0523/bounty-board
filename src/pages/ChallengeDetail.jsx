@@ -39,6 +39,15 @@ export default function ChallengeDetail() {
     gift_type: '飞机',
     gift_quantity: 1,
   })
+  const [reviewEditTarget, setReviewEditTarget] = useState(null)
+  const [reviewEditForm, setReviewEditForm] = useState({
+    title: '',
+    condition_desc: '',
+    description: '',
+    gift_type: '飞机',
+    gift_quantity: 1,
+    validity_hours: 3,
+  })
 
   const [submitting, setSubmitting] = useState(false)
   const [completing, setCompleting] = useState(false)
@@ -208,6 +217,44 @@ export default function ChallengeDetail() {
     }
   }
 
+  function openReviewEdit(c) {
+    setReviewEditTarget(c)
+    setReviewEditForm({
+      title: c.title || '',
+      condition_desc: c.condition_desc || '',
+      description: c.description || '',
+      gift_type: c.gift_type || '飞机',
+      gift_quantity: c.gift_quantity || 1,
+      validity_hours: c.validity_hours || 3,
+    })
+  }
+
+  async function submitReviewEdit(e) {
+    e.preventDefault()
+    if (!reviewEditTarget) return
+    if (!reviewEditForm.title.trim()) return alert('请填写任务标题')
+    const qty = parseInt(reviewEditForm.gift_quantity)
+    if (!qty || qty <= 0) return alert('礼物数量必须为正整数')
+    setSubmitting(true)
+    try {
+      await updateChallenge(reviewEditTarget.id, {
+        title: reviewEditForm.title.trim(),
+        condition_desc: reviewEditForm.condition_desc.trim() || null,
+        description: reviewEditForm.description.trim() || null,
+        gift_type: reviewEditForm.gift_type,
+        gift_quantity: qty,
+        validity_hours: Number(reviewEditForm.validity_hours),
+      })
+      alert('已重新提交审核')
+      setReviewEditTarget(null)
+      await fetchAll()
+    } catch (err) {
+      alert('提交失败：' + err.message)
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
   async function handleComplete() {
     if (!isChallengeActive(challenge, now)) {
       alert('任务已结束或到期，不能标记完成')
@@ -248,6 +295,7 @@ export default function ChallengeDetail() {
     return <Layout><div className="cd-loading">任务不存在</div></Layout>
   }
   const challengeStatus = getChallengeStatus(challenge, now)
+  const canEditReview = currentUser && challenge?.created_by === currentUser.id && ['pending', 'rejected'].includes(challenge.review_status || 'approved')
 
   return (
     <Layout>
@@ -260,8 +308,15 @@ export default function ChallengeDetail() {
             {isMain ? '主任务 · ' : '隐藏任务 · '}{challengeStatusLabel(challengeStatus)}
           </div>
           <div className={`cd-expiry ${challengeStatus === 'expired' ? 'is-expired' : ''}`}>
-            {challengeStatus === 'active' ? `⏳ ${formatRemainingTime(challenge.expires_at, now)}（${formatExpiryTime(challenge.expires_at)} 到期）` : challengeStatus === 'expired' ? '⌛ 任务已到期，不能再跟单或添加隐藏任务' : `有效期：${challenge.validity_hours || 3}小时`}
+            {challengeStatus === 'pending' ? '🕒 正在等待后台审核，通过后才会公开显示' : challengeStatus === 'rejected' ? `❌ 审核未通过：${challenge.review_reason || '请修改后重新提交'}` : challengeStatus === 'active' ? `⏳ ${formatRemainingTime(challenge.expires_at, now)}（${formatExpiryTime(challenge.expires_at)} 到期）` : challengeStatus === 'expired' ? '⌛ 任务已到期，不能再跟单或添加隐藏任务' : `有效期：${challenge.validity_hours || 3}小时`}
           </div>
+          {canEditReview && (
+            <div className="cd-review-box">
+              <strong>{challenge.review_status === 'rejected' ? '这单被拒绝了' : '这单还在审核中'}</strong>
+              {challenge.review_status === 'rejected' && <span>原因：{challenge.review_reason || '后台未填写原因'}</span>}
+              <button type="button" className="cd-btn-primary" onClick={() => openReviewEdit(challenge)}>{challenge.review_status === 'rejected' ? '修改后重新提交' : '修改提交内容'}</button>
+            </div>
+          )}
 
           <div className="cd-boss-row">
             {bossAvatarNode(challenge)}
@@ -386,6 +441,13 @@ export default function ChallengeDetail() {
                       </div>
                     )}
 
+                    {currentUser && h.created_by === currentUser.id && ['pending', 'rejected'].includes(h.review_status || 'approved') && (
+                      <div className="cd-review-box small">
+                        <strong>{h.review_status === 'rejected' ? '隐藏任务审核未通过' : '隐藏任务待审核'}</strong>
+                        {h.review_status === 'rejected' && <span>原因：{h.review_reason || '后台未填写原因'}</span>}
+                        <button type="button" className="cd-btn-primary" onClick={() => openReviewEdit(h)}>修改后重新提交</button>
+                      </div>
+                    )}
                     <button className="cd-follow-btn small" onClick={() => handleFollowClick(h)} disabled={hiddenStatus !== 'active'}>
                       {hiddenStatus === 'active' ? '+ 跟单' : '任务已结束'}
                     </button>
@@ -393,6 +455,26 @@ export default function ChallengeDetail() {
                 )
               })
             )}
+          </div>
+        )}
+
+        {reviewEditTarget && (
+          <div className="cd-modal-overlay" onClick={() => setReviewEditTarget(null)}>
+            <div className="cd-modal large" onClick={e => e.stopPropagation()}>
+              <div className="cd-modal-title">修改任务并重新提交审核</div>
+              {reviewEditTarget.review_status === 'rejected' && <div className="cd-modal-subtitle">拒绝原因：{reviewEditTarget.review_reason || '后台未填写原因'}</div>}
+              <form onSubmit={submitReviewEdit} className="cd-form">
+                <label className="cd-form-label">任务标题 <span className="required">*</span><input className="cd-form-input" value={reviewEditForm.title} onChange={e => setReviewEditForm({ ...reviewEditForm, title: e.target.value })} required /></label>
+                <label className="cd-form-label">任务条件<input className="cd-form-input" value={reviewEditForm.condition_desc} onChange={e => setReviewEditForm({ ...reviewEditForm, condition_desc: e.target.value })} /></label>
+                <label className="cd-form-label">详细描述<textarea className="cd-form-input" rows="3" value={reviewEditForm.description} onChange={e => setReviewEditForm({ ...reviewEditForm, description: e.target.value })} /></label>
+                <div className="cd-form-row">
+                  <label className="cd-form-label">礼物类型<select className="cd-form-input" value={reviewEditForm.gift_type} onChange={e => setReviewEditForm({ ...reviewEditForm, gift_type: e.target.value })}>{GIFT_TYPES.map(t => <option key={t} value={t}>{GIFT_ICONS[t]} {t}</option>)}</select></label>
+                  <label className="cd-form-label">数量<input className="cd-form-input" type="number" min="1" step="1" value={reviewEditForm.gift_quantity} onChange={e => setReviewEditForm({ ...reviewEditForm, gift_quantity: e.target.value })} required /></label>
+                </div>
+                <label className="cd-form-label">通过后的有效期<select className="cd-form-input" value={reviewEditForm.validity_hours} onChange={e => setReviewEditForm({ ...reviewEditForm, validity_hours: Number(e.target.value) })}>{[3, 5, 8, 12, 24].map(hours => <option key={hours} value={hours}>{hours}小时</option>)}</select></label>
+                <div className="cd-form-actions"><button type="button" className="cd-btn-secondary" onClick={() => setReviewEditTarget(null)}>取消</button><button type="submit" className="cd-btn-primary" disabled={submitting}>{submitting ? '提交中...' : '重新提交审核'}</button></div>
+              </form>
+            </div>
           </div>
         )}
 

@@ -2,6 +2,8 @@ export const VALIDITY_HOURS = [3, 5, 8, 12, 24]
 
 export function getChallengeStatus(challenge, now = Date.now()) {
   if (!challenge) return 'cancelled'
+  const reviewStatus = challenge.review_status || 'approved'
+  if (reviewStatus !== 'approved') return reviewStatus
   if (challenge.status !== 'active') return challenge.status
   const expiresAt = challenge.expires_at ? new Date(challenge.expires_at).getTime() : NaN
   if (Number.isFinite(expiresAt) && expiresAt <= now) return 'expired'
@@ -48,5 +50,9 @@ export function formatDateTimeWithWeekday(value) {
 }
 
 export function challengeStatusLabel(status) {
-  return { active: '进行中', expired: '已到期', completed: '已完成', cancelled: '已取消' }[status] || status
+  return { active: '进行中', pending: '待审核', rejected: '已拒绝', expired: '已到期', completed: '已完成', cancelled: '已取消' }[status] || status
+}
+
+export function reviewStatusLabel(status) {
+  return { pending: '待审核', approved: '已通过', rejected: '已拒绝' }[status || 'approved'] || status
 }
