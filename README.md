@@ -336,3 +336,10 @@ node --check server/auth.mjs
 - 后台“跟单管理”现在同时显示“主任务”和“跟单任务”。
 - 主任务跟单会显示“主任务跟单”；隐藏任务跟单会显示所属主任务标题，并标记“隐藏任务”。
 - 本次只修改后台展示和前端版本号，不修改数据库，不改变跟单数据。
+
+### 2026-09-22 详情页 Not found 修复
+
+- 现象：用户下单后可以在任务列表看到任务，但点击任务进入详情页提示“加载失败：Not found”。
+- 根因：GitHub Pages 前端已经调用详情聚合接口 `GET /api/challenges/:id/detail`，VPS API 当时仍运行旧后端文件，未包含该路由。
+- 处理：PR #17 合并到 `main` 后，重新发布 Pages 前端；同步部署 API 详情路由。部署前备份为 `/opt/bounty-board/backups/pre-deploy-detail-route-20260922T110249Z`。
+- 验证：线上管理员会话请求真实任务详情接口返回 `ok=true`；`bounty-board-api.service` 和 `bounty-board-douyu-worker.service` 均 active；数据库和斗鱼 Worker 监听逻辑未改。
