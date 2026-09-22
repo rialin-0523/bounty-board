@@ -144,6 +144,9 @@ supabase/api_only_rls_hardening.sql
 - `parent_challenge_id`
 - `created_by`
 - `status`
+- `review_status`：任务审核状态，`pending` / `approved` / `rejected`
+- `review_reason`：拒绝原因，给下单人查看后修改重提
+- `reviewed_at` / `reviewed_by`
 - `validity_hours`：有效期档位，只能是 3 / 5 / 8 / 12 / 24，默认 3
 - `expires_at`：准确到期时间
 - `created_at` / `updated_at`
@@ -153,6 +156,7 @@ supabase/api_only_rls_hardening.sql
 - `gift_type` 只能是：`飞机`、`火箭`、`币`
 - `gift_quantity > 0`
 - `status` 只能是：`active`、`completed`、`cancelled`
+- `review_status` 只能是：`pending`、`approved`、`rejected`
 - `created_by` 外键指向 `users.id`
 - 任务到期不写入 `status=expired`；API 根据 `status=active + expires_at <= 当前时间` 动态返回已到期，避免管理员延期后残留错误状态
 
@@ -332,6 +336,7 @@ supabase/api_only_rls_hardening.sql
 6. **登录状态走 `auth_sessions`**。
 7. **旧 `app_users` 只当迁移痕迹**，不要再回退回去。
 8. **任务默认有效 3 小时**；到期后 API 必须拒绝跟单和新增隐藏任务。后台需要延时，必须明确重设 `expires_at`，不能只改显示文案。
+9. **任务必须先审核再公开**；普通用户发布主任务/隐藏任务默认 `review_status=pending`，后台通过后改 `approved` 并重算 `expires_at`，拒绝时写 `review_reason`，下单人修改后重新变回 `pending`。跟单暂时不审核。
 
 ---
 
@@ -341,5 +346,6 @@ supabase/api_only_rls_hardening.sql
 - `supabase/binding_increment.sql`
 - `supabase/task_expiration_increment.sql`（已上线库新增任务时效）
 - `supabase/performance_increment.sql`（任务/跟单查询索引、跟单汇总视图、重复提交幂等字段）
+- `supabase/challenge_review_increment.sql`（任务审核字段和索引）
 
 如果你朋友要直接改库，优先看这两个文件。

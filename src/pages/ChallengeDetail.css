@@ -472,3 +472,27 @@
 .cd-status-expired { background: #c76b00; }
 .cd-hidden-expiry { color: #d7b74c; font-size: .75rem; margin: 2px 0 8px; }
 .cd-follow-btn:disabled { background: #888; color: #eee; cursor: not-allowed; }
+
+.cd-review-box {
+  margin: 14px 0;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 204, 102, 0.35);
+  border-radius: 12px;
+  background: rgba(255, 184, 77, 0.08);
+  color: #ffe4a8;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.cd-review-box span {
+  color: #ffd0d0;
+  flex: 1 1 240px;
+}
+
+.cd-review-box.small {
+  margin-top: 10px;
+  font-size: 0.9rem;
+}

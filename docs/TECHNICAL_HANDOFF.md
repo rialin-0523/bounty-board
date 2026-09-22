@@ -18,6 +18,7 @@
 - 已有数据库增量脚本：`supabase/binding_increment.sql`
 - 已上线库的任务时效增量脚本：`supabase/task_expiration_increment.sql`
 - 性能与防重复提交增量脚本：`supabase/performance_increment.sql`
+- 任务审核增量脚本：`supabase/challenge_review_increment.sql`
 
 ## 3. 关键规则
 
@@ -41,11 +42,11 @@
 ### 3.3 任务可见性
 
 - `created_by` 必须写入任务和跟单。
-- 任务创建时必须从五档有效期 `3 / 5 / 8 / 12 / 24` 中选择，默认 3 小时，并写入 `validity_hours` 和 `expires_at`。
+- 任务创建时必须从五档有效期 `3 / 5 / 8 / 12 / 24` 中选择，默认 3 小时，并写入 `validity_hours` 和 `expires_at`。普通用户新建主任务/隐藏任务必须先进入 `review_status=pending`，后台通过后才公开显示；通过时从当前时间重新计算 `expires_at`。
 - API 读取任务时动态计算 `effective_status=expired`，不靠定时任务改数据库；已到期任务不能跟单、不能添加隐藏任务、普通用户不能再修改。管理员可勾选“重新开始计算有效期”，从当前时间重设期限。
 - 普通用户的 `boss_id` / `created_by` 必须由后端按登录 Cookie 自动写入，不能相信前端表单或浏览器请求传来的身份字段；管理员后台仍可手动维护任务显示信息。
 - 隐藏任务只对创建者自己、以及主任务创建者可见。
-- 首页和详情页都按登录用户做可见性过滤。
+- 首页和详情页都按登录用户做可见性过滤；未审核通过的任务只允许创建者本人和管理员查看。拒绝原因写入 `review_reason`，创建者修改后重新变回待审核。跟单暂时不走审核。
 - 未登录只能打开 `/login` 和 `/bind`；任务首页、任务详情、发布页及对应 API 都要求站内登录。管理员使用独立管理员 Cookie，不受普通用户 API 门禁影响。
 
 ### 3.4 斗鱼绑定
@@ -121,6 +122,7 @@ node --check server/auth.mjs
 - 如果主分支数据库还没有 `users` / `settings` / `created_by`，先跑 `supabase/binding_increment.sql` 或直接按 `supabase/migration.sql` 初始化。
 - 为已有生产任务加时效时，先执行 `supabase/task_expiration_increment.sql`，再部署 API；否则新 API 写入 `validity_hours / expires_at` 会失败。
 - `supabase/performance_increment.sql` 需由数据库维护者在 Supabase SQL Editor 执行；执行前先确认历史数据无重复的非空 `request_id`。
+- `supabase/challenge_review_increment.sql` 需由数据库维护者在 Supabase SQL Editor 执行；它会给旧任务默认标记为已通过，避免历史任务突然消失。
 - 不要把详情页恢复为“任务详情 + 全部任务 + 每个隐藏任务跟单”的串行请求链；必须继续使用详情聚合接口。
 - 如果以后重新编写首页任务接口，必须保留 `follow_summary` 的批量返回；不要恢复“列表接口 + 每个任务一个跟单请求”的 N+1 请求模式。
 - 首页自动刷新只用于展示层；不要把“浏览器轮询”误当成斗鱼弹幕监听。斗鱼 TCP 监听仍由独立 Worker 负责，不能为了刷新任务把 Worker 合回 HTTP API。

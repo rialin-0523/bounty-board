@@ -99,12 +99,12 @@ export default function PublishPage() {
     }
   }
 
-  if (success) return <Layout><div className="publish-success"><div className="publish-success-icon">🎯</div><div className="publish-success-title">发布成功！</div><div className="publish-success-text">正在跳转到任务详情...</div></div></Layout>
+  if (success) return <Layout><div className="publish-success"><div className="publish-success-icon">🕒</div><div className="publish-success-title">已提交审核！</div><div className="publish-success-text">后台通过后才会公开显示；正在跳转到你的任务详情...</div></div></Layout>
 
   return (
     <Layout>
       <div className="publish-page"><div className="publish-card"><div className="publish-card-border"></div>
-        <h1 className="publish-title">发布挑战</h1><p className="publish-subtitle">填好下面信息，任务立刻出现在首页</p>
+        <h1 className="publish-title">发布挑战</h1><p className="publish-subtitle">提交后先进入后台审核，通过后才会显示给其他用户</p>
         {currentUser ? <div className="publish-current-user">当前：<strong>{currentUser.douyu_nickname || currentUser.douyu_id || currentUser.username}</strong>{currentUser.douyu_level > 0 && <span className="publish-user-lv"> LV{currentUser.douyu_level}</span>}{currentUser.is_blacklisted && <span className="publish-user-banned">已拉黑</span>}</div> : <div className="publish-current-user is-warning">请先登录后再发布任务。</div>}
         {!permission.loading && !permission.allowed && currentUser && <div className="publish-current-user is-warning">{permission.message}</div>}
         <form onSubmit={handleSubmit} className="publish-form">
@@ -118,7 +118,7 @@ export default function PublishPage() {
             <label>任务有效期<select value={form.validity_hours} onChange={e => setForm({ ...form, validity_hours: Number(e.target.value) })}>{VALIDITY_HOURS.map(hours => <option key={hours} value={hours}>{hours}小时</option>)}</select><small className="publish-current-user-sub">默认 3 小时；到期后不能再跟单或添加隐藏任务。</small></label>
           </fieldset>
           <fieldset className="publish-section"><legend>🎁 奖励设置</legend><div className="publish-form-row"><label>礼物类型 <span className="required">*</span><select value={form.gift_type} onChange={e => setForm({ ...form, gift_type: e.target.value })} required>{GIFT_TYPES.map(t => <option key={t} value={t}>{GIFT_ICONS[t]} {t}</option>)}</select></label><label>数量 <span className="required">*</span><input type="number" min="1" step="1" value={form.gift_quantity} onChange={e => setForm({ ...form, gift_quantity: e.target.value })} required /></label></div></fieldset>
-          <div className="publish-actions"><button type="button" className="publish-btn-secondary" onClick={() => navigate(-1)} disabled={submitting}>取消</button><button type="submit" className="publish-btn-primary" disabled={submitting || !currentUser || !permission.allowed}>{submitting ? '发布中...' : '🚀 立即发布'}</button></div>
+          <div className="publish-actions"><button type="button" className="publish-btn-secondary" onClick={() => navigate(-1)} disabled={submitting}>取消</button><button type="submit" className="publish-btn-primary" disabled={submitting || !currentUser || !permission.allowed}>{submitting ? '提交中...' : '🚀 提交审核'}</button></div>
         </form>
       </div></div>
     </Layout>

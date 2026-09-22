@@ -2,6 +2,7 @@ import { nowIso, supabaseAdmin } from './config.mjs'
 
 const GIFT_TYPES = new Set(['飞机', '火箭', '币'])
 const CHALLENGE_STATUSES = new Set(['active', 'completed', 'cancelled'])
+const REVIEW_STATUSES = new Set(['pending', 'approved', 'rejected'])
 const VALIDITY_HOURS = new Set([3, 5, 8, 12, 24])
 
 function db() {
@@ -56,24 +57,34 @@ function isChallengeExpired(row, now = Date.now()) {
   return Number.isFinite(expiresAt) && expiresAt <= now
 }
 
+function reviewStatus(row) {
+  return row?.review_status || 'approved'
+}
+
 function challengeStatus(row, now = Date.now()) {
   if (!row) return 'cancelled'
+  const review = reviewStatus(row)
+  if (review !== 'approved') return review
   return isChallengeExpired(row, now) ? 'expired' : row.status
 }
 
 function decorateChallengeLifecycle(row) {
   if (!row) return row
   const effectiveStatus = challengeStatus(row)
+  const review = reviewStatus(row)
   return {
     ...row,
+    review_status: review,
     effective_status: effectiveStatus,
     is_expired: effectiveStatus === 'expired',
+    is_review_pending: review === 'pending',
+    is_review_rejected: review === 'rejected',
   }
 }
 
 function sortChallenges(rows) {
   return [...rows].sort((a, b) => {
-    const order = { active: 0, expired: 1, completed: 2, cancelled: 3 }
+    const order = { pending: 0, rejected: 1, active: 2, expired: 3, completed: 4, cancelled: 5 }
     const oa = order[a.effective_status || a.status] ?? 9
     const ob = order[b.effective_status || b.status] ?? 9
     if (oa !== ob) return oa - ob
@@ -84,10 +95,13 @@ function sortChallenges(rows) {
 function canSeeChallenge(row, parent, ctx = {}) {
   if (!row) return false
   if (ctx.isAdmin) return true
-  if (!row.parent_challenge_id) return true
   const userId = ctx.user?.id
+  const isOwner = userId && row.created_by === userId
+  const isApproved = reviewStatus(row) === 'approved'
+  if (!isApproved) return Boolean(isOwner)
+  if (!row.parent_challenge_id) return true
   if (!userId) return false
-  if (row.created_by === userId) return true
+  if (isOwner) return true
   return parent?.created_by === userId
 }
 
@@ -262,12 +276,13 @@ export async function listChallengeRows({ includeHidden = true, showAllHidden = 
 
 export async function listMainChallengesWithHiddenRows({ showAllHidden = false, ctx = {} } = {}) {
   const rows = await many(await db().from('challenges').select('*').order('created_at', { ascending: false }))
-  const mains = rows.filter(row => !row.parent_challenge_id)
+  const allMains = rows.filter(row => !row.parent_challenge_id)
+  const mains = allMains.filter(row => canSeeChallenge(row, null, ctx))
   const hiddens = rows.filter(row => row.parent_challenge_id)
   const allowAllHidden = showAllHidden && ctx.isAdmin
   const visibleHiddens = allowAllHidden
     ? hiddens
-    : hiddens.filter(row => canSeeChallenge(row, mains.find(main => main.id === row.parent_challenge_id), ctx))
+    : hiddens.filter(row => canSeeChallenge(row, allMains.find(main => main.id === row.parent_challenge_id), ctx) && mains.some(main => main.id === row.parent_challenge_id))
 
   const visibleIds = new Set([...mains, ...visibleHiddens].map(row => row.created_by).filter(Boolean))
   const usersById = await userMapByIds([...visibleIds])
@@ -352,6 +367,12 @@ function validateStatus(value) {
   return status
 }
 
+function validateReviewStatus(value) {
+  const status = String(value || 'pending').trim()
+  if (!REVIEW_STATUSES.has(status)) throw new Error('审核状态不正确')
+  return status
+}
+
 function positiveInt(value, label = '数量') {
   const n = Number.parseInt(String(value ?? ''), 10)
   if (!Number.isFinite(n) || n <= 0) throw new Error(`${label}必须为正整数`)
@@ -369,6 +390,7 @@ function expiresAtFromNow(hours) {
 }
 
 function ensureChallengeActive(row, message = '任务已到期，无法继续操作') {
+  if (reviewStatus(row) !== 'approved') throw new Error('任务还没有审核通过，暂时不能操作')
   if (challengeStatus(row) !== 'active') throw new Error(message)
   return row
 }
@@ -405,6 +427,10 @@ export async function createChallengeRow(payload = {}, ctx = {}) {
     parent_challenge_id: parentId,
     created_by: ctx.isAdmin ? (payload.created_by || null) : user.id,
     status: validateStatus(payload.status || 'active'),
+    review_status: ctx.isAdmin ? validateReviewStatus(payload.review_status || 'approved') : 'pending',
+    review_reason: null,
+    reviewed_at: ctx.isAdmin ? nowIso() : null,
+    reviewed_by: ctx.isAdmin ? (ctx.admin?.username || 'admin') : null,
     validity_hours: validityHours,
     expires_at: expiresAtFromNow(validityHours),
     created_at: nowIso(),
@@ -424,17 +450,35 @@ export async function updateChallengeRow(id, payload = {}, ctx = {}) {
   }
 
   const row = { updated_at: nowIso() }
-  if (ctx.isAdmin) {
-    if ('boss_id' in payload) row.boss_id = String(payload.boss_id || '').trim()
+  const allowContentEdit = ctx.isAdmin || ['pending', 'rejected'].includes(reviewStatus(existing))
+  if (ctx.isAdmin || allowContentEdit) {
     if ('title' in payload) row.title = String(payload.title || '').trim()
     if ('description' in payload) row.description = payload.description ? String(payload.description).trim() : null
     if ('condition_desc' in payload) row.condition_desc = payload.condition_desc ? String(payload.condition_desc).trim() : null
     if ('gift_type' in payload) row.gift_type = validateGift(payload.gift_type)
     if ('gift_quantity' in payload) row.gift_quantity = positiveInt(payload.gift_quantity, '礼物数量')
+    if ('validity_hours' in payload) row.validity_hours = validateValidityHours(payload.validity_hours)
+  }
+  if (ctx.isAdmin) {
+    if ('boss_id' in payload) row.boss_id = String(payload.boss_id || '').trim()
     if ('status' in payload) row.status = validateStatus(payload.status)
     if ('created_by' in payload) row.created_by = payload.created_by || null
     if ('is_hidden' in payload) row.is_hidden = Boolean(payload.is_hidden)
     if ('parent_challenge_id' in payload) row.parent_challenge_id = payload.parent_challenge_id || null
+    if ('review_status' in payload) {
+      const nextReview = validateReviewStatus(payload.review_status)
+      row.review_status = nextReview
+      row.review_reason = nextReview === 'rejected' ? String(payload.review_reason || '').trim() : null
+      if (nextReview === 'rejected' && !row.review_reason) throw new Error('拒绝时必须填写原因')
+      row.reviewed_at = nowIso()
+      row.reviewed_by = ctx.admin?.username || 'admin'
+      if (nextReview === 'approved') {
+        const validityHours = validateValidityHours(payload.validity_hours ?? existing.validity_hours ?? 3)
+        row.validity_hours = validityHours
+        row.expires_at = expiresAtFromNow(validityHours)
+        row.status = 'active'
+      }
+    }
     if (payload.reset_expiry === true || payload.reset_expiry === 'true') {
       const validityHours = validateValidityHours(payload.validity_hours ?? existing.validity_hours ?? 3)
       row.validity_hours = validityHours
@@ -442,8 +486,17 @@ export async function updateChallengeRow(id, payload = {}, ctx = {}) {
       if (existing.status === 'active') row.status = 'active'
     }
   } else {
-    if ('status' in payload) row.status = validateStatus(payload.status)
+    if (allowContentEdit && ['pending', 'rejected'].includes(reviewStatus(existing))) {
+      row.review_status = 'pending'
+      row.review_reason = null
+      row.reviewed_at = null
+      row.reviewed_by = null
+      row.status = 'active'
+    } else if ('status' in payload) {
+      row.status = validateStatus(payload.status)
+    }
   }
+  if ('title' in row && !row.title) throw new Error('请填写挑战标题')
 
   const updated = await first(await db().from('challenges').update(row).eq('id', id).select('*').single())
   return updated
