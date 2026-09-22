@@ -561,6 +561,10 @@ function Admin() {
                         <td>{c.hidden_challenges?.length || 0}</td>
                         <td>{formatDateTimeWithWeekday(c.created_at)}</td>
                         <td>
+                          {['pending', 'rejected'].includes(c.review_status || 'approved') && <>
+                            <button className="admin-btn-primary" onClick={() => handleReviewChallenge(c, 'approved')}>通过审核</button>
+                            <button className="admin-btn-danger" onClick={() => handleReviewChallenge(c, 'rejected')}>拒绝并备注</button>
+                          </>}
                           <button onClick={() => editChallenge(c)}>编辑</button>
                           <button className="admin-btn-danger" onClick={() => handleChallengeDelete(c.id)}>删除</button>
                         </td>
@@ -579,6 +583,10 @@ function Admin() {
                           <td>-</td>
                           <td>{formatDateTimeWithWeekday(h.created_at)}</td>
                           <td>
+                            {['pending', 'rejected'].includes(h.review_status || 'approved') && <>
+                              <button className="admin-btn-primary" onClick={() => handleReviewChallenge(h, 'approved')}>通过审核</button>
+                              <button className="admin-btn-danger" onClick={() => handleReviewChallenge(h, 'rejected')}>拒绝并备注</button>
+                            </>}
                             <button onClick={() => editChallenge(h)}>编辑</button>
                             <button className="admin-btn-danger" onClick={() => handleChallengeDelete(h.id)}>删除</button>
                           </td>
