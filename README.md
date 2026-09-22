@@ -343,3 +343,10 @@ node --check server/auth.mjs
 - 根因：GitHub Pages 前端已经调用详情聚合接口 `GET /api/challenges/:id/detail`，VPS API 当时仍运行旧后端文件，未包含该路由。
 - 处理：PR #17 合并到 `main` 后，重新发布 Pages 前端；同步部署 API 详情路由。部署前备份为 `/opt/bounty-board/backups/pre-deploy-detail-route-20260922T110249Z`。
 - 验证：线上管理员会话请求真实任务详情接口返回 `ok=true`；`bounty-board-api.service` 和 `bounty-board-douyu-worker.service` 均 active；数据库和斗鱼 Worker 监听逻辑未改。
+
+### 2026-09-22 审核可见性与后台按钮补丁
+
+- 现象：前台可能因旧缓存/旧 API 返回结果看到未审核任务；后台审核按钮只放在独立页签，容易找不到。
+- 处理：前台增加展示层兜底，非任务创建者只显示 `review_status=approved` 的任务；后台任务管理列表直接增加“通过审核”和“拒绝并备注”按钮，同时保留“任务审核”页签。
+- 发布：PR #18 已合并；GitHub Pages Actions `35720344464` 构建和发布成功。
+- 验证：线上 Admin bundle 已包含 `任务审核`、`通过审核`、`拒绝并备注`；HomePage bundle 已包含非本人审核状态过滤。
