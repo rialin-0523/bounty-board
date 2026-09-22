@@ -148,3 +148,11 @@ node --check server/auth.mjs
 - 后台跟单管理加载全部任务后，会按 `parent_challenge_id` 建立任务关系。
 - 跟单记录同时显示 `main_challenge_title` 和当前 `challenge_title`；隐藏任务不会只显示自身标题而丢失主任务上下文。
 - 这次是前端展示适配，不需要数据库迁移，也不需要重启 API/斗鱼 Worker。
+
+## 2026-09-22 详情页 Not found 修复
+
+- 现象：任务列表能看到刚下的单，但点击进入详情页返回 `加载失败：Not found`。
+- 根因：前端已经使用 `GET /api/challenges/:id/detail` 聚合接口，而 VPS API 仍是旧版本，未部署该路由；不是任务数据丢失。
+- 处理：PR #17 已合并到 `main`（合并提交 `8b66a929`）；Pages Actions `35717668484` 成功；VPS API 已同步部署详情路由。
+- 验证：管理员会话请求线上真实任务详情返回 `ok=true`；部署前备份 `/opt/bounty-board/backups/pre-deploy-detail-route-20260922T110249Z`；API 与斗鱼 Worker 均 active，Worker 未重启。
+- 排查经验：前端接口版本、GitHub Pages 发布版本、VPS API 版本必须一起核对；出现“列表能看、详情 Not found”时优先检查 API 路由是否已部署，不要先怀疑数据库记录。

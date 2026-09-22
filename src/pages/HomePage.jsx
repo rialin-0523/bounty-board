@@ -91,6 +91,10 @@ export default function HomePage() {
   }
 
   const display = challenges.filter(c => {
+    const reviewStatus = c.review_status || 'approved'
+    const isOwner = Boolean(currentUser?.id && c.created_by === currentUser.id)
+    // API 已经做权限过滤；这里再做一次展示层兜底，避免旧缓存/旧 API 把待审核任务展示给其他人。
+    if (reviewStatus !== 'approved' && !isOwner) return false
     const status = getChallengeStatus(c, now)
     if (statusFilter !== '全部' && status !== statusFilter) return false
     if (giftFilter !== '全部' && c.gift_type !== giftFilter) return false
