@@ -156,3 +156,9 @@ node --check server/auth.mjs
 - 处理：PR #17 已合并到 `main`（合并提交 `8b66a929`）；Pages Actions `35717668484` 成功；VPS API 已同步部署详情路由。
 - 验证：管理员会话请求线上真实任务详情返回 `ok=true`；部署前备份 `/opt/bounty-board/backups/pre-deploy-detail-route-20260922T110249Z`；API 与斗鱼 Worker 均 active，Worker 未重启。
 - 排查经验：前端接口版本、GitHub Pages 发布版本、VPS API 版本必须一起核对；出现“列表能看、详情 Not found”时优先检查 API 路由是否已部署，不要先怀疑数据库记录。
+
+## 2026-09-22 审核可见性与后台按钮补丁
+
+- 前台增加展示层兜底：当任务不是当前登录用户创建的，且 `review_status` 不是 `approved` 时不显示；API 层过滤仍是主要安全边界。
+- 后台任务管理列表直接显示“通过审核”“拒绝并备注”，拒绝时必须输入原因；顶部“任务审核”页签继续保留用于集中处理。
+- PR #18 已合并；Pages Actions `35720344464` 成功；线上 Admin/HomePage 资源核对通过。
