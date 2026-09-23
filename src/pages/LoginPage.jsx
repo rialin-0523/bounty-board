@@ -39,8 +39,10 @@ export default function LoginPage() {
       <div className="login-page">
         <div className="login-card">
           <div className="login-card-border"></div>
-          <div className="login-kicker">账号登录</div>
-          <h1 className="login-title">用用户名和密码登录</h1>
+          <div className="login-emblem" aria-hidden="true">令</div>
+          <div className="login-kicker">亿星传媒 · 悬赏令</div>
+          <h1 className="login-title">欢迎回来</h1>
+          <p className="login-heading">用用户名和密码登录</p>
           <p className="login-subtitle">登录后会保持在浏览器里，适合长期使用。</p>
 
           {user && <div className="login-tip">当前已登录：{user.username}</div>}
@@ -49,20 +51,23 @@ export default function LoginPage() {
           <form className="login-form" onSubmit={handleSubmit}>
             <label>
               用户名
+              <span className="login-field-label">用户名</span>
               <input
                 value={form.username}
                 onChange={e => setForm({ ...form, username: e.target.value })}
-                placeholder="输入用户名"
+                placeholder="请输入用户名"
+                autoComplete="username"
                 required
               />
             </label>
             <label>
-              密码
+              <span className="login-field-label">密码</span>
               <input
                 type="password"
                 value={form.password}
                 onChange={e => setForm({ ...form, password: e.target.value })}
-                placeholder="输入密码"
+                placeholder="请输入密码"
+                autoComplete="current-password"
                 required
               />
             </label>
